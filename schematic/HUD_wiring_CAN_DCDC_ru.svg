@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 660" width="940" height="660" font-family="Arial, Helvetica, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 850" width="940" height="850" font-family="Arial, Helvetica, sans-serif">
   <title>Схема подключения: DC-DC, Adafruit CAN Pal (5708) и Waveshare ESP32-S3-Touch-LCD-3.49</title>
-  <rect width="940" height="660" fill="#ffffff"/>
+  <rect width="940" height="850" fill="#ffffff"/>
   <defs>
     <style>
       .box{fill:#f4f6f8;stroke:#334155;stroke-width:2;rx:10}
@@ -49,7 +49,7 @@
   <path class="w" stroke="#111827" d="M215 165 H300"/>
 
   <!-- ===== Waveshare ===== -->
-  <rect x="650" y="70" width="270" height="450" rx="10" class="box"/>
+  <rect x="650" y="70" width="270" height="590" rx="10" class="box"/>
   <text x="785" y="96" class="h" text-anchor="middle">Waveshare</text>
   <text x="785" y="114" class="s" text-anchor="middle">ESP32-S3-Touch-LCD-3.49</text>
   <text x="662" y="110" class="t" dy="4">5 В IN</text>
@@ -92,9 +92,11 @@
   <path class="w" stroke="#9333ea" d="M505 320 H580 V290 H645"/>
   <path class="w" stroke="#9333ea" d="M505 360 H580 V320"/>
   <circle cx="580" cy="320" r="4.5" fill="#9333ea"/>
+  <path class="w" stroke="#9333ea" d="M625 290 V612 H505"/>
+  <circle cx="625" cy="290" r="4.5" fill="#9333ea"/>
 
   <!-- GND CAN Pal -> GND платы -->
-  <path class="w" stroke="#111827" d="M505 400 H610 V165"/>
+  <path class="w" stroke="#111827" d="M505 400 H610 V165 M610 400 V590 H505"/>
   <circle cx="610" cy="165" r="4.5" fill="#111827"/>
 
   <!-- RX -->
@@ -105,12 +107,29 @@
   <path stroke="#b91c1c" stroke-width="3.5" stroke-linecap="round" d="M565 472 L581 488 M581 472 L565 488"/>
   <text x="515" y="466" class="nc">не подключать</text>
 
+
+  <!-- ===== Light divider (optional) ===== -->
+  <rect x="300" y="535" width="200" height="120" rx="10" class="box"/>
+  <text x="400" y="557" class="h" text-anchor="middle" font-size="15">Датчик света (опция)</text>
+  <text x="400" y="573" class="s" text-anchor="middle">LDR + 10 кОм + 100 нФ</text>
+  <text x="492" y="590" class="t" dy="4" text-anchor="end">GND</text>
+  <text x="492" y="612" class="t" dy="4" text-anchor="end">3V3</text>
+  <text x="492" y="634" class="t" dy="4" text-anchor="end">OUT</text>
+  <circle cx="500" cy="590" r="5" class="pin"/><circle cx="500" cy="612" r="5" class="pin"/><circle cx="500" cy="634" r="5" class="pin"/>
+  <path class="w" stroke="#0891b2" d="M505 634 H645"/>
+  <text x="662" y="634" class="t" dy="4">GPIO5 (датчик света)</text>
+  <circle cx="650" cy="634" r="5" class="pin"/>
+
+  <g transform="translate(0,150)">
   <!-- ===== Примечания ===== -->
   <line x1="20" y1="540" x2="920" y2="540" stroke="#cbd5e1"/>
   <text x="20" y="566" class="t"><tspan font-weight="bold">Цвета проводов:</tspan>
-    <tspan fill="#dc2626">■</tspan> +12 В   <tspan fill="#f97316">■</tspan> +5 В   <tspan fill="#111827">■</tspan> масса   <tspan fill="#9333ea">■</tspan> 3,3 В   <tspan fill="#eab308">■</tspan> CAN-H   <tspan fill="#16a34a">■</tspan> CAN-L   <tspan fill="#2563eb">■</tspan> данные RX</text>
+    <tspan fill="#dc2626">■</tspan> +12 В   <tspan fill="#f97316">■</tspan> +5 В   <tspan fill="#111827">■</tspan> масса   <tspan fill="#9333ea">■</tspan> 3,3 В   <tspan fill="#eab308">■</tspan> CAN-H   <tspan fill="#16a34a">■</tspan> CAN-L   <tspan fill="#2563eb">■</tspan> данные RX   <tspan fill="#0891b2">■</tspan> сигнал датчика света</text>
   <text x="20" y="592" class="s">• Приём только на RX (GPIO1): передача в шину исключена — TX не подключён, SLNT на 3V3 (silent), драйвер в LISTEN_ONLY.</text>
   <text x="20" y="612" class="s">• Переключатель Termination на CAN Pal — OFF: шина в машине уже согласована.  • Все массы (DC-DC, CAN Pal, плата, шина) — общие.</text>
   <text x="20" y="632" class="s">• +12 В брать с линии под ключом (ACC) через предохранитель 1–2 А; DC-DC — автомобильный, с запасом по току и защитой от выбросов.</text>
   <text x="20" y="652" class="s">• Vcc CAN Pal — 3V3 платы: на CAN Pal есть собственный преобразователь до 5 В для трансивера и согласование уровней.</text>
+  <text x="20" y="672" class="s">• Фоторезистор по желанию: работает, когда нет данных RLS_01 по CAN.</text>
+  <text x="20" y="688" class="s">  Включается и калибруется в меню (Прочее → Датчик): закрыть датчик → «Темно», посветить фонариком → «Светло».</text>
+  </g>
 </svg>

@@ -30,6 +30,7 @@
 #include "hud_images.h"
 #include "hud_nav_images.h"
 #include "hud_sound.h"
+#include "hud_light.h"
 #include "hud_source.h"
 #include "hud_sounds.h"
 #include "psd_speedlimit.h"
@@ -305,7 +306,9 @@ static int light_lux(const HudData *d)
         if (d->rls_fw >= 1020 && d->rls_boost <= 15) return boost_lux[d->rls_boost];
         return d->rls_fw * 6;
     }
-    /* датчика нет — оценка по авто-яркости дисплеев (0 лк -> ~99, 6000 лк -> 253) */
+    /* нет RLS_01 — свой фоторезистор (GPIO5), если включён и откалиброван */
+    { int l = hud_light_lux(); if (l >= 0) return l; }
+    /* иначе — оценка по авто-яркости дисплеев (0 лк -> ~99, 6000 лк -> 253) */
     if ((d->valid & V_DIM) && d->dim_raw <= 253)
         return d->dim_raw <= 99 ? 0 : (d->dim_raw - 99) * 6000 / 154;
     return -1;
@@ -314,6 +317,7 @@ static int light_lux(const HudData *d)
 static void update_brightness(const HudData *d, uint32_t now)
 {
     static int cur = -1;
+    hud_light_poll();
     int lux = light_lux(d);
     /* колёсико 0..1: BCM1_04; нет — DI_KL_58xd в темноте (там он = колёсико 10..100); нет — по умолчанию */
     float w;
@@ -346,8 +350,8 @@ static void update_brightness(const HudData *d, uint32_t now)
     static uint32_t last_log;
     if (HUD_LOG_DIM && now - last_log > 10000) {
         last_log = now;
-        arduino_printf("[dim] свет %d лк (FW %s%u, Boost %u) -> %.0f%%, колёсико %s%u%% -> подсветка %d/255\n",
-                       lux, (d->valid & V_RLS) ? "" : "нет ", d->rls_fw * 6u, d->rls_boost, t * 100.0f,
+        arduino_printf("[dim] свет %d лк (FW %s%u, Boost %u; фоторез. %d мВ) -> %.0f%%, колёсико %s%u%% -> подсветка %d/255\n",
+                       lux, (d->valid & V_RLS) ? "" : "нет ", d->rls_fw * 6u, d->rls_boost, hud_light_mv(), t * 100.0f,
                        (d->valid & V_WHEEL) ? "" : "нет ", d->wheel_pct, cur);
     }
 }
@@ -900,7 +904,7 @@ static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y
 #define C_MENU_DIM    0x9a9a9a
 
 enum { B_LANG_RU, B_LANG_EN, B_UNIT_KM, B_UNIT_MI, B_VOL_L, B_VOL_G, B_FUEL_I, B_FUEL_A,
-       B_VZE, B_PSD, B_ACCEL, B_SND, B_TOL, B_COUNT };
+       B_VZE, B_PSD, B_ACCEL, B_SND, B_TOL, B_LDR, B_COUNT };
 enum { G_LANG, G_UNITS, G_VOL, G_FUEL, G_OPT, G_MORE, G_COUNT };
 static lv_obj_t *menu_box, *menu_title[G_COUNT], *menu_btn[B_COUNT], *menu_btn_lbl[B_COUNT], *menu_close_lbl;
 static uint32_t  menu_last_touch;
@@ -908,6 +912,11 @@ static uint32_t  menu_last_touch;
 /* панель ползунка: 0 — громкость, 1 — допуск превышения */
 static lv_obj_t *ov_box, *ov_title, *ov_val, *ov_slider, *ov_ok_lbl;
 static int       ov_kind;
+
+/* панель калибровки датчика света: «темно» (закрыт) и «светло» (фонарик) */
+static lv_obj_t *cal_box, *cal_title, *cal_live, *cal_msg, *cal_lbl_dark, *cal_lbl_bright,
+                *cal_lbl_save, *cal_lbl_en, *cal_lbl_cancel;
+static int       cal_dark, cal_bright;           /* захваченные, мВ; -1 — ещё нет */
 
 static void menu_close(void);
 
@@ -942,9 +951,9 @@ static void menu_refresh(void)
     lv_label_set_text(menu_btn_lbl[B_PSD], "PSD");
     lv_label_set_text(menu_btn_lbl[B_ACCEL], en ? "Accel" : "Разгон");
     char buf[32];
-    snprintf(buf, sizeof buf, "%s\n%u", en ? "Sound" : "Звук", (unsigned)hud_sound_get_volume());
+    snprintf(buf, sizeof buf, "%s %u", en ? "Sound" : "Звук", (unsigned)hud_sound_get_volume());
     lv_label_set_text(menu_btn_lbl[B_SND], buf);
-    snprintf(buf, sizeof buf, "%s\n%u", en ? "Margin" : "Допуск", (unsigned)g_tol);
+    snprintf(buf, sizeof buf, "%s %u", en ? "Margin" : "Допуск", (unsigned)g_tol);
     lv_label_set_text(menu_btn_lbl[B_TOL], buf);
 
     menu_sel(B_LANG_RU, !en);        menu_sel(B_LANG_EN, en);
@@ -953,6 +962,8 @@ static void menu_refresh(void)
     menu_sel(B_FUEL_I,  !g_favg);    menu_sel(B_FUEL_A,  g_favg);
     menu_sw(B_VZE, g_vze);           menu_sw(B_PSD, g_psd);          menu_sw(B_ACCEL, g_accel);
     menu_sel(B_SND, false);          menu_sel(B_TOL, false);
+    lv_label_set_text(menu_btn_lbl[B_LDR], en ? "Light sens." : "Датчик");
+    menu_sel(B_LDR, hud_light_enabled());
     lv_label_set_text(menu_close_lbl, LV_SYMBOL_CLOSE);
 }
 
@@ -1009,6 +1020,87 @@ static void ov_close(void)
 
 static void menu_any_touch_cb(lv_event_t *e) { (void)e; menu_last_touch = hud_now_ms(); }
 
+/* ---- панель калибровки датчика света ---- */
+static void cal_text(void)
+{
+    bool en = g_lang == HUD_LANG_EN;
+    char buf[96], a[16], b[16];
+    int mv = hud_light_mv();
+    if (cal_dark   >= 0) snprintf(a, sizeof a, "%d", cal_dark);   else snprintf(a, sizeof a, "-");
+    if (cal_bright >= 0) snprintf(b, sizeof b, "%d", cal_bright); else snprintf(b, sizeof b, "-");
+    snprintf(buf, sizeof buf, en ? "Now: %d mV   Dark: %s   Bright: %s" : "Сейчас: %d мВ   Темно: %s   Светло: %s",
+             mv < 0 ? 0 : mv, a, b);
+    lv_label_set_text(cal_live, buf);
+}
+
+static void cal_labels(void)
+{
+    bool en = g_lang == HUD_LANG_EN;
+    lv_label_set_text(cal_title, en ? "Light sensor calibration" : "Калибровка датчика света");
+    lv_label_set_text(cal_lbl_dark,   en ? "1. Cover the sensor\nand tap" : "1. Закройте датчик\nи нажмите");
+    lv_label_set_text(cal_lbl_bright, en ? "2. Shine a torch\nand tap"    : "2. Посветите фонариком\nи нажмите");
+    lv_label_set_text(cal_lbl_save,   en ? "Save" : "Сохранить");
+    lv_label_set_text(cal_lbl_en,     hud_light_enabled() ? (en ? "Sensor: ON" : "Датчик: ВКЛ")
+                                                          : (en ? "Sensor: OFF" : "Датчик: ВЫКЛ"));
+    lv_label_set_text(cal_lbl_cancel, en ? "Cancel" : "Отмена");
+    cal_text();
+}
+
+static void cal_open(void)
+{
+    cal_dark = cal_bright = -1;
+    lv_label_set_text(cal_msg, "");
+    hud_light_force(true);
+    cal_labels();
+    lv_obj_clear_flag(cal_box, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(cal_box);
+}
+
+static void cal_close(void)
+{
+    if (lv_obj_has_flag(cal_box, LV_OBJ_FLAG_HIDDEN)) return;
+    lv_obj_add_flag(cal_box, LV_OBJ_FLAG_HIDDEN);
+    hud_light_force(false);
+}
+
+static void cal_btn_cb(lv_event_t *e)
+{
+    bool en = g_lang == HUD_LANG_EN;
+    int  k  = (int)(intptr_t)lv_event_get_user_data(e);
+    int  mv = hud_light_mv();
+    menu_last_touch = hud_now_ms();
+    switch (k) {
+    case 0: case 1:                                   /* захватить «темно» / «светло» */
+        if (mv < 0) { lv_label_set_text(cal_msg, en ? "No reading yet" : "Нет измерения"); break; }
+        if (k == 0) cal_dark = mv; else cal_bright = mv;
+        lv_label_set_text(cal_msg, "");
+        break;
+    case 2:                                           /* сохранить */
+        if (cal_dark < 0 || cal_bright < 0) {
+            lv_label_set_text(cal_msg, en ? "Do both steps first" : "Сначала оба шага");
+        } else if (!hud_light_cal_valid(cal_dark, cal_bright)) {
+            lv_label_set_text(cal_msg, en ? "Too little difference - repeat" : "Слишком мала разница - повторите");
+        } else {
+            hud_light_set_cal(cal_dark, cal_bright);
+            hud_light_set_enabled(true);
+            hud_settings_save();
+            cal_close();
+            menu_refresh();
+            return;
+        }
+        break;
+    case 3:                                           /* датчик вкл / выкл */
+        hud_light_set_enabled(!hud_light_enabled());
+        hud_settings_save();
+        menu_refresh();
+        break;
+    case 4:                                           /* отмена */
+        cal_close();
+        return;
+    }
+    cal_labels();
+}
+
 #if LV_USE_SLIDER
 static void ov_slider_cb(lv_event_t *e)
 {
@@ -1044,13 +1136,14 @@ static void menu_btn_cb(lv_event_t *e)
     case B_ACCEL:   hud_set_accel_bar(!g_accel); break;
     case B_SND:     menu_last_touch = hud_now_ms(); ov_open(0); return;
     case B_TOL:     menu_last_touch = hud_now_ms(); ov_open(1); return;
+    case B_LDR:     menu_last_touch = hud_now_ms(); cal_open(); return;
     }
     menu_last_touch = hud_now_ms();
     menu_refresh();
     hud_settings_save();
 }
 
-static void menu_close(void) { ov_close(); lv_obj_add_flag(menu_box, LV_OBJ_FLAG_HIDDEN); }
+static void menu_close(void) { ov_close(); cal_close(); lv_obj_add_flag(menu_box, LV_OBJ_FLAG_HIDDEN); }
 static void menu_close_cb(lv_event_t *e) { (void)e; menu_close(); }
 
 /* запрос меню от задачи тача (одиночное / двойное касание, HUD_MENU_DOUBLE_TAP) */
@@ -1062,6 +1155,7 @@ static void menu_open_cb(lv_event_t *e)
     menu_refresh();
     menu_last_touch = hud_now_ms();
     lv_obj_add_flag(ov_box, LV_OBJ_FLAG_HIDDEN);
+    cal_close();
     lv_obj_clear_flag(menu_box, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(menu_box);
 }
@@ -1080,9 +1174,11 @@ static void menu_timer_cb(lv_timer_t *t)
 #endif
     if (lv_obj_has_flag(menu_box, LV_OBJ_FLAG_HIDDEN)) {
         if (req && allowed) menu_open_cb(NULL);            /* открыть по касанию */
-    } else if (!allowed || hud_now_ms() - menu_last_touch > HUD_MENU_TIMEOUT_MS) {
+    } else if (!allowed || hud_now_ms() - menu_last_touch >
+               (lv_obj_has_flag(cal_box, LV_OBJ_FLAG_HIDDEN) ? HUD_MENU_TIMEOUT_MS : 60000)) {
         menu_close();                                      /* тронулись или нет касаний HUD_MENU_TIMEOUT_MS */
     }
+    if (!lv_obj_has_flag(cal_box, LV_OBJ_FLAG_HIDDEN)) cal_text();      /* живое значение датчика */
 }
 
 static lv_obj_t *menu_mk_btn(lv_obj_t *parent, int x, int y, int w, int h, lv_obj_t **lbl_out)
@@ -1155,6 +1251,49 @@ static void build_ov(lv_obj_t *scr)
     lv_obj_add_flag(ov_box, LV_OBJ_FLAG_HIDDEN);
 }
 
+static lv_obj_t *cal_mk_label(lv_obj_t *parent, int y, bool dim)
+{
+    lv_obj_t *l = lv_label_create(parent);
+    lv_obj_set_style_text_font(l, &hud_font_menu, 0);
+    lv_obj_set_style_text_color(l, lv_color_hex(dim ? C_MENU_DIM : 0xffffff), 0);
+    lv_obj_set_width(l, 640);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(l, 0, y);
+    return l;
+}
+
+static void build_cal(lv_obj_t *scr)
+{
+    cal_box = lv_obj_create(scr);
+    lv_obj_remove_style_all(cal_box);
+    lv_obj_set_size(cal_box, 640, 172);
+    lv_obj_set_pos(cal_box, 0, 0);
+    lv_obj_set_style_bg_color(cal_box, lv_color_hex(C_MENU_BG), 0);
+    lv_obj_set_style_bg_opa(cal_box, LV_OPA_COVER, 0);
+    lv_obj_add_flag(cal_box, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(cal_box, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(cal_box, menu_any_touch_cb, LV_EVENT_PRESSED, NULL);
+
+    cal_title = cal_mk_label(cal_box, 4, true);
+    cal_live  = cal_mk_label(cal_box, 28, false);
+    cal_msg   = cal_mk_label(cal_box, 108, false);
+    lv_obj_set_style_text_color(cal_msg, lv_color_hex(0xe0a020), 0);
+
+    lv_obj_t *b;
+    b = menu_mk_btn(cal_box, 14, 54, 300, 52, &cal_lbl_dark);
+    lv_obj_add_event_cb(b, cal_btn_cb, LV_EVENT_CLICKED, (void *)(intptr_t)0);
+    b = menu_mk_btn(cal_box, 326, 54, 300, 52, &cal_lbl_bright);
+    lv_obj_add_event_cb(b, cal_btn_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
+    b = menu_mk_btn(cal_box, 14, 132, 190, 34, &cal_lbl_save);
+    lv_obj_set_style_bg_color(b, lv_color_hex(C_MENU_ON), 0);
+    lv_obj_add_event_cb(b, cal_btn_cb, LV_EVENT_CLICKED, (void *)(intptr_t)2);
+    b = menu_mk_btn(cal_box, 225, 132, 190, 34, &cal_lbl_en);
+    lv_obj_add_event_cb(b, cal_btn_cb, LV_EVENT_CLICKED, (void *)(intptr_t)3);
+    b = menu_mk_btn(cal_box, 436, 132, 190, 34, &cal_lbl_cancel);
+    lv_obj_add_event_cb(b, cal_btn_cb, LV_EVENT_CLICKED, (void *)(intptr_t)4);
+    lv_obj_add_flag(cal_box, LV_OBJ_FLAG_HIDDEN);
+}
+
 static void build_menu(lv_obj_t *scr)
 {
     /* ловушка касаний поверх экрана HUD: короткое касание -> меню */
@@ -1197,7 +1336,8 @@ static void build_menu(lv_obj_t *scr)
     MKB(B_FUEL_I,  G_FUEL,  Y2(0), hhalf);  MKB(B_FUEL_A,  G_FUEL,  Y2(1), hhalf);
     MKB(B_VZE,     G_OPT,   Y3(0), h3);     MKB(B_PSD,     G_OPT,   Y3(1), h3);
     MKB(B_ACCEL,   G_OPT,   Y3(2), h3);
-    MKB(B_SND,     G_MORE,  Y2(0), hhalf);  MKB(B_TOL,     G_MORE,  Y2(1), hhalf);
+    MKB(B_SND,     G_MORE,  Y3(0), h3);     MKB(B_TOL,     G_MORE,  Y3(1), h3);
+    MKB(B_LDR,     G_MORE,  Y3(2), h3);
     #undef MKB
     #undef Y3
     #undef Y2
@@ -1212,6 +1352,7 @@ static void build_menu(lv_obj_t *scr)
     #undef COLX
 
     build_ov(scr);                         /* панель ползунка — поверх меню */
+    build_cal(scr);                        /* панель калибровки датчика света */
     menu_refresh();
     lv_obj_add_flag(menu_box, LV_OBJ_FLAG_HIDDEN);
     lv_timer_create(menu_timer_cb, 50, NULL);

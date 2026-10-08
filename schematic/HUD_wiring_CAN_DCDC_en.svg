@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 660" width="940" height="660" font-family="Arial, Helvetica, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 850" width="940" height="850" font-family="Arial, Helvetica, sans-serif">
   <title>Wiring diagram: DC-DC, Adafruit CAN Pal (5708) and Waveshare ESP32-S3-Touch-LCD-3.49</title>
-  <rect width="940" height="660" fill="#ffffff"/>
+  <rect width="940" height="850" fill="#ffffff"/>
   <defs>
     <style>
       .box{fill:#f4f6f8;stroke:#334155;stroke-width:2;rx:10}
@@ -49,7 +49,7 @@
   <path class="w" stroke="#111827" d="M215 165 H300"/>
 
   <!-- ===== Waveshare ===== -->
-  <rect x="650" y="70" width="270" height="450" rx="10" class="box"/>
+  <rect x="650" y="70" width="270" height="590" rx="10" class="box"/>
   <text x="785" y="96" class="h" text-anchor="middle">Waveshare</text>
   <text x="785" y="114" class="s" text-anchor="middle">ESP32-S3-Touch-LCD-3.49</text>
   <text x="662" y="110" class="t" dy="4">5 V IN</text>
@@ -92,9 +92,11 @@
   <path class="w" stroke="#9333ea" d="M505 320 H580 V290 H645"/>
   <path class="w" stroke="#9333ea" d="M505 360 H580 V320"/>
   <circle cx="580" cy="320" r="4.5" fill="#9333ea"/>
+  <path class="w" stroke="#9333ea" d="M625 290 V612 H505"/>
+  <circle cx="625" cy="290" r="4.5" fill="#9333ea"/>
 
   <!-- GND CAN Pal -> board GND -->
-  <path class="w" stroke="#111827" d="M505 400 H610 V165"/>
+  <path class="w" stroke="#111827" d="M505 400 H610 V165 M610 400 V590 H505"/>
   <circle cx="610" cy="165" r="4.5" fill="#111827"/>
 
   <!-- RX -->
@@ -105,12 +107,29 @@
   <path stroke="#b91c1c" stroke-width="3.5" stroke-linecap="round" d="M565 472 L581 488 M581 472 L565 488"/>
   <text x="515" y="466" class="nc">do not connect</text>
 
+
+  <!-- ===== Light sensor (optional) ===== -->
+  <rect x="300" y="535" width="200" height="120" rx="10" class="box"/>
+  <text x="400" y="557" class="h" text-anchor="middle" font-size="15">Light sensor (optional)</text>
+  <text x="400" y="573" class="s" text-anchor="middle">LDR + 10 kΩ + 100 nF</text>
+  <text x="492" y="590" class="t" dy="4" text-anchor="end">GND</text>
+  <text x="492" y="612" class="t" dy="4" text-anchor="end">3V3</text>
+  <text x="492" y="634" class="t" dy="4" text-anchor="end">OUT</text>
+  <circle cx="500" cy="590" r="5" class="pin"/><circle cx="500" cy="612" r="5" class="pin"/><circle cx="500" cy="634" r="5" class="pin"/>
+  <path class="w" stroke="#0891b2" d="M505 634 H645"/>
+  <text x="662" y="634" class="t" dy="4">GPIO5 (light sensor)</text>
+  <circle cx="650" cy="634" r="5" class="pin"/>
+
+  <g transform="translate(0,150)">
   <!-- ===== Notes ===== -->
   <line x1="20" y1="540" x2="920" y2="540" stroke="#cbd5e1"/>
   <text x="20" y="566" class="t"><tspan font-weight="bold">Wire colours:</tspan>
-    <tspan fill="#dc2626">■</tspan> +12 V   <tspan fill="#f97316">■</tspan> +5 V   <tspan fill="#111827">■</tspan> ground   <tspan fill="#9333ea">■</tspan> 3.3 V   <tspan fill="#eab308">■</tspan> CAN-H   <tspan fill="#16a34a">■</tspan> CAN-L   <tspan fill="#2563eb">■</tspan> RX data</text>
+    <tspan fill="#dc2626">■</tspan> +12 V   <tspan fill="#f97316">■</tspan> +5 V   <tspan fill="#111827">■</tspan> ground   <tspan fill="#9333ea">■</tspan> 3.3 V   <tspan fill="#eab308">■</tspan> CAN-H   <tspan fill="#16a34a">■</tspan> CAN-L   <tspan fill="#2563eb">■</tspan> RX data   <tspan fill="#0891b2">■</tspan> light sensor signal</text>
   <text x="20" y="592" class="s">• Receive only on RX (GPIO1): transmitting to the bus is ruled out — TX is not connected, SLNT is tied to 3V3 (silent), driver in LISTEN_ONLY.</text>
   <text x="20" y="612" class="s">• CAN Pal Termination switch is OFF: the car bus is already terminated.  • All grounds (DC-DC, CAN Pal, board, bus) are common.</text>
   <text x="20" y="632" class="s">• Take +12 V from an ignition-switched (ACC) line through a 1–2 A fuse; use an automotive DC-DC with current margin and surge protection.</text>
   <text x="20" y="652" class="s">• CAN Pal Vcc goes to the board's 3V3: the CAN Pal has its own 5 V charge pump for the transceiver and handles level matching.</text>
+  <text x="20" y="672" class="s">• The photoresistor is optional: it is used when there is no RLS_01 data on CAN.</text>
+  <text x="20" y="688" class="s">  Enable and calibrate it in the menu (More → Sensor): cover the sensor → Dark, shine a torch → Bright.</text>
+  </g>
 </svg>

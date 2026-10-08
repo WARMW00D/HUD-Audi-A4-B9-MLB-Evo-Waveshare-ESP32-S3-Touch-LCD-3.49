@@ -49,13 +49,13 @@ Data is read passively from the I-CAN (infotainment) bus; nothing is ever transm
 | **Doors, bonnet, boot** | Top view of the car in place of the navigation arrow, open parts in red |
 | **Navigation** | Maneuver arrow (39 variants), next maneuver as a small grey arrow in the corner, distance to maneuver, 16-segment bar graph, distance and time to destination |
 | **Pre sense** | Red triangle with "!" and the word PreSense in place of the arrow, overriding doors and navigation. Warning = steady, acute / braking = blinking |
-| **Brightness** | Ambient light × dimmer wheel. Light — `RLS_01` sensor (up to 6126 lx, above that by `Boost`, up to ~30000 lx), logarithmic; wheel — `BCM1_04` (1–100 %), linear. Four corners: dark 90 / 110, sunlight 200 / 255 (wheel min / max) |
+| **Brightness** | Ambient light × dimmer wheel. Light — `RLS_01` sensor (up to 6126 lx, above that by `Boost`, up to ~30000 lx), logarithmic; wheel — `BCM1_04` (1–100 %), linear. Four corners: dark 90 / 110, sunlight 200 / 255 (wheel min / max). Without `RLS_01` data the optional photoresistor on GPIO5 is used, then the estimate from the cluster's `Dimmung_01` |
 | **Language and units** | Russian / English, km / miles. Defaults: `HUD_LANG` and `HUD_UNITS` in `hud_config.h`; at run time: `hud_set_lang()` / `hud_set_units()` (for the future settings menu and voice control) |
 | **Acceleration bar** | Along the bottom edge under the navigation arrow, squares spread out from the centre: green = accelerating, red = braking. From CAN: `ESP_02` (longitudinal acceleration) if present on I-CAN, otherwise the derivative of the `Kombi_01` speed. Full scale: 0–100 km/h in 9 s (3.09 m/s²), braking 6 m/s² |
 | **Fuel to fill up** | Above the speed area on the left, on the gear-indicator line: pump icon and "13 L" / "3.4 gal" — how much fits until the tank is full: `HUD_TANK_L` (54 L) × (100 − level % from `BAP_BC` fct 0x1C). Litres / US gallons in the menu |
 | **Fuel consumption** | 5 px dark-grey strip on the right edge, bottom-up 0–20 L/100 km, blinks above 20. Average = the cluster trip computer "since start" (`BAP_BC`), shown at any speed. Instant only if `Motor_04` is on the bus (not found on I-CAN), from 35 km/h |
 | **Sound** | Startup sound at power-on (original, synthesised by `tools/synth_startup.py`). On-board ES8311 codec and amplifier, own FreeRTOS task — independent of rendering |
-| **Settings menu** | Double tap on the screen (`HUD_MENU_DOUBLE_TAP 0` = single tap), **only while the car is stopped**: the menu closes once moving. Language, units (km / miles), fuel volume (litres / gallons), consumption (instant / average) — all options are shown, the active one green, the others grey. VZE, PSD, accel — toggles: green on, red off (VZE and PSD can both be on). "Sound" (0–100) and overspeed "Margin" (0–20 km/h) open a panel over the menu with a slider and − / + buttons (the volume plays a test beep). Stored in flash (NVS); closes with ✕ or after 10 s without touches |
+| **Settings menu** | Double tap on the screen (`HUD_MENU_DOUBLE_TAP 0` = single tap), **only while the car is stopped**: the menu closes once moving. Language, units (km / miles), fuel volume (litres / gallons), consumption (instant / average) — all options are shown, the active one green, the others grey. VZE, PSD, accel — toggles: green on, red off (VZE and PSD can both be on). "Sound" (0–100) and overspeed "Margin" (0–20 km/h) open a panel over the menu with a slider and − / + buttons (the volume plays a test beep). "Sensor" opens the photoresistor calibration panel (see Hardware). Stored in flash (NVS); closes with ✕ or after 10 s without touches |
 | **Data-source indicator** | Bottom-left, under the navigation arrow. Grey Bluetooth icon with dots = connecting to the sniffer; dark-blue icon = BLE connected; dark-green **CAN** = frames come from the own CAN Pal transceiver. Hidden when there is no data and nothing to connect to |
 
 Any field without fresh data is **hidden** instead of showing a stale value
@@ -131,11 +131,21 @@ Three layers of protection against transmitting: `LISTEN_ONLY` mode, unconnected
 
 The TWAI driver requires a TX pin (`HUD_CAN_TX_PIN` = **GPIO2**), but in `LISTEN_ONLY` it always stays recessive. Leave GPIO2 unconnected on the header.
 
-Pin choice follows the board's GPIO table: used are LCD (9–14, 17, 18, 21, 42), SD (38–41), IMU/RTC/audio I²C (47, 48), I2S (6, 7, 15, 45, 46), battery (4), EXIO (8), SYS_OUT (16), USB (19, 20), UART0 (43, 44); strapping pins are 0, 3, 45, 46. Fully free: GPIO1, 2, 5. GPIO5 is a spare.
+Pin choice follows the board's GPIO table: used are LCD (9–14, 17, 18, 21, 42), SD (38–41), IMU/RTC/audio I²C (47, 48), I2S (6, 7, 15, 45, 46), battery (4), EXIO (8), SYS_OUT (16), USB (19, 20), UART0 (43, 44); strapping pins are 0, 3, 45, 46. Fully free: GPIO1, 2, 5. GPIO1 is the CAN RX, GPIO2 the TWAI TX stub; **GPIO5 (ADC1) is used by the optional photoresistor** (see below).
+
+### Optional photoresistor (light sensor)
+
+A backup light sensor for the case when `RLS_01` does not arrive over CAN (for example on the bench or with a different gateway). Build a divider: **LDR** between 3V3 and **GPIO5**, **10 kΩ** between GPIO5 and GND, **100 nF** from GPIO5 to GND. Any polarity works — the calibration works out the direction.
+
+Switch on and calibrate in the menu: **More → Sensor**. Cover the sensor completely and tap "1", then shine a bright torch at it and tap "2", then "Save" (the sensor turns on automatically; if the difference is below `HUD_LDR_MIN_SPAN_MV` the calibration is rejected). The same panel has an on / off button. Calibration and the on / off state are stored in flash. Pin and defaults: `HUD_LDR_*` in `hud_config.h`. The reading is in mV (ADC1, 11 dB, 8-sample average, smoothed); light between "dark" and "bright" is mapped linearly and then fed into the same logarithmic brightness formula as `RLS_01`.
+
+![Photoresistor divider](schematic/HUD_light_sensor_divider_en.svg)
+
+Russian version: [`schematic/HUD_light_sensor_divider_ru.svg`](schematic/HUD_light_sensor_divider_ru.svg).
 
 ### Wiring diagram
 
-Power (12 V → 5 V DC-DC), CAN Pal and the display board:
+Power (12 V → 5 V DC-DC), CAN Pal, the optional light sensor and the display board:
 
 ![Wiring diagram](schematic/HUD_wiring_CAN_DCDC_en.svg)
 
@@ -254,6 +264,10 @@ If you use the BLE source with pairing, first copy `waveshare_hud_mockup/secrets
 | `HUD_WHEEL_DEFAULT` | `100` | wheel position until it arrives over CAN |
 | `HUD_BRIGHT_NO_DATA` | `170` | backlight with no light data |
 | `HUD_BRIGHT_STEP` | `4` | smoothing: change per 50 ms |
+| `HUD_LDR_PIN` | `5` | ADC input of the photoresistor (ADC1 only: GPIO1…10) |
+| `HUD_LDR_ON` | `0` | first boot: `1` = photoresistor on (then from the menu) |
+| `HUD_LDR_DARK_MV` / `HUD_LDR_BRIGHT_MV` | `150` / `2500` | default calibration, mV (replaced by the menu calibration) |
+| `HUD_LDR_MIN_SPAN_MV` | `300` | smallest allowed "bright" − "dark" difference at calibration, mV |
 
 ---
 
@@ -619,6 +633,7 @@ several times (noting the times), then look for bits that change at those moment
     ├── hud_mockup.c/.h            screen: construction, update lv_timer, settings menu
     ├── hud_sound.c/.h             sound: ES8311 + I2S, own task, sound queue
     ├── hud_log.cpp/.h             log: Serial + file on the SD card
+    ├── hud_light.cpp/.h           photoresistor on GPIO5: ADC, calibration, lux estimate
     ├── hud_settings.cpp           menu settings in flash (NVS)
     ├── hud_sounds.c/.h            PCM sounds at 22050 Hz (generated)
     ├── src/esp_codec_dev/         Espressif codec driver (from the Waveshare 08_Audio_Test example)
