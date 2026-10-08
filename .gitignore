@@ -1,0 +1,7 @@
+# secrets (never published)
+secrets.h
+
+# build output / caches
+build/
+__pycache__/
+*.pyc
