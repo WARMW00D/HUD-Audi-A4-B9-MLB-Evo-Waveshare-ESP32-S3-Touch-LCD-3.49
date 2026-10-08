@@ -276,9 +276,11 @@ static const NavImg *nav_pick(const NavSet *set, uint8_t main, uint8_t dir)
     case 0x0B: return &set->turn[0];                     /* FollowStreet          */
     case 0x0F: return &set->exit[1];                     /* ExitRight             */
     case 0x10: return &set->exit[0];                     /* ExitLeft              */
-    case 0x13: case 0x14:                               /* Fork: сторона по Direction, ⚠️ при 0 — по коду */
+    case 0x13: case 0x14:                               /* «съезд»: штатная навигация шлёт съезд с дороги кодом 0x13/0x14,
+                                                           приборка рисует его как съезд (прямая дорога + ответвление), а не
+                                                           как раздвоение. Сторона по Direction, при 0 — по коду */
         if (dir == 0) right = (main == 0x13);
-        return &set->fork[right ? 1 : 0];
+        return &set->exit[right ? 1 : 0];
     case 0x15: case 0x16: return &set->round[sec];       /* Roundabout            */
     case 0x19: return &set->uturn[right ? 1 : 0];        /* U-turn                */
     case 0x0D: case 0x1C: return &set->turn[sec];       /* Turn / PrepareTurn    */

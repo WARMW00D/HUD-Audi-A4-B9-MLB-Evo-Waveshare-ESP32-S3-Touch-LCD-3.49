@@ -520,7 +520,7 @@ Graphics flash usage: ~40 KB icons and car view + ~200 KB arrows.
 | 0x0D, 0x1C | Turn, PrepareTurn | turn, sector `((dir + 8) >> 4) & 15` |
 | 0x15, 0x16 | Roundabout | roundabout, exit sector |
 | 0x0F / 0x10 | Exit Right / Left | motorway exit |
-| 0x13, 0x14 | Fork | fork, side from Direction |
+| 0x13, 0x14 | Exit / fork (the native navigation sends a ramp exit with this code) | exit picture (straight road + branch), side from Direction; the cluster draws it the same way |
 | 0x19 | U-turn | U-turn |
 | 0x03 | Arrived | destination |
 | 0x09, 0x0A | route calculation | "..." |
@@ -661,14 +661,12 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 - Lane Assist while driving: lane values 2 and 3, warnings;
 - 8th gear, S and M modes;
 - limiter on kick-down (probably a separate bit); bit 58 of 0x31E — purpose unknown;
-- navigation: codes 0x13/0x14 (which fork is right), 0x15/0x16 (difference between
-  roundabouts), direction of `Direction`.
+- navigation: codes 0x13/0x14 for a real two-way fork (a ramp exit is confirmed: it is drawn as an exit, like the cluster does).
 
 **Roadmap:**
 
 - speed camera database (SCDB): signs and a warning when approaching the fine threshold —
   on the HUD itself, using the car's GNSS from I-CAN, configurable threshold;
-- roundabout exit: the `Direction` byte of the 0x15/0x16 message is identical for both directions, the exit is in another Navigation_SD function (candidate fct 0x39, research with `HUD_LOG_BAP 1`); today both are drawn the same way;
 - roundabout exit number and street names (BAP `TurnToInfo`, side streets from
   `ManeuverDescriptor`);
 - ACC following distance (1–5) on the icon.
