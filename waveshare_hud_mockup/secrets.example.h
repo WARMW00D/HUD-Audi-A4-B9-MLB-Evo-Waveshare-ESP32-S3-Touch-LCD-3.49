@@ -8,10 +8,14 @@
   0 или нет файла secrets.h — защита выключена (так работают устройства с
   BLE_PASSKEY 0, как в прежних версиях).
   Код без ведущих нулей: 004711 -> 4711.
+
+  HUD_OTA_PASS — пароль Wi-Fi точки доступа режима обновления (не короче 8 символов).
+  Нет в secrets.h — используется "hud12345": смените его.
 */
 #ifndef HUD_SECRETS_H
 #define HUD_SECRETS_H
 
 #define BLE_PASSKEY 0
+#define HUD_OTA_PASS "change-me-123"
 
 #endif

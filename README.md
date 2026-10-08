@@ -56,6 +56,7 @@ Data is read passively from the I-CAN (infotainment) bus; nothing is ever transm
 | **Fuel consumption** | 5 px dark-grey strip on the right edge, bottom-up 0–20 L/100 km, blinks above 20. Average = the cluster trip computer "since start" (`BAP_BC`), shown at any speed. Instant only if `Motor_04` is on the bus (not found on I-CAN), from 35 km/h |
 | **Sound** | Startup sound at power-on (original, synthesised by `tools/synth_startup.py`). On-board ES8311 codec and amplifier, own FreeRTOS task — independent of rendering |
 | **Settings menu** | Double tap on the screen (`HUD_MENU_DOUBLE_TAP 0` = single tap), **only while the car is stopped**: the menu closes once moving. Language, units (km / miles), fuel volume (litres / gallons), consumption (instant / average) — all options are shown, the active one green, the others grey. VZE, PSD, accel — toggles: green on, red off (VZE and PSD can both be on). "Sound" (0–100) and overspeed "Margin" (0–20 km/h) open a panel over the menu with a slider and − / + buttons (the volume plays a test beep). "Sensor" opens the photoresistor calibration panel (see Hardware). Stored in flash (NVS); closes with ✕ or after 10 s without touches |
+| **Firmware update (OTA)** | Hold **BOOT** for 1.5 s with the car stopped: the HUD reboots into update mode — Wi-Fi access point `HUD-Update`, the screen shows the password, the address `http://192.168.4.1` and a progress bar. Upload the `.bin` on the page, the HUD flashes it and reboots. See [Updating over Wi-Fi](#6-updating-over-wi-fi-ota) |
 | **Data-source indicator** | Bottom-left, under the navigation arrow. Grey Bluetooth icon with dots = connecting to the sniffer; dark-blue icon = BLE connected; dark-green **CAN** = frames come from the own CAN Pal transceiver. Hidden when there is no data and nothing to connect to |
 
 Any field without fresh data is **hidden** instead of showing a stale value
@@ -201,12 +202,28 @@ archive. Changes compared to the example:
 - `lvgl_port.c`: calls `build_hud_mockup()` instead of `lv_demo_widgets()`,
   `#include "demos/lv_demos.h"` removed.
 
-### 4. Build
+### 4. Partition scheme (needed for OTA)
+
+In the Arduino IDE: **Tools → Partition Scheme → "16M Flash (3MB APP/9.9MB FATFS)"** (two 3 MB application slots). Without two app slots OTA cannot work. Changing the scheme needs one flash over USB; the settings stored in flash (NVS) may be reset by it.
+
+### 5. Build
 
 Open `waveshare_hud_mockup/waveshare_hud_mockup.ino` in the Arduino IDE, select the board and port, build and
 flash. Serial runs at 115200.
 
 If you use the BLE source with pairing, first copy `waveshare_hud_mockup/secrets.example.h` to `secrets.h` in the same folder and set `BLE_PASSKEY` (see "Passkey pairing" below). Without `secrets.h` the sketch still builds; pairing protection is off.
+
+---
+
+### 6. Updating over Wi-Fi (OTA)
+
+1. In the Arduino IDE: **Sketch → Export Compiled Binary**. Take the file `waveshare_hud_mockup.ino.bin` from the sketch's `build` folder (not the `bootloader`, `partitions` or `merged` files).
+2. Stop the car, hold **BOOT** on the HUD for 1.5 s (a beep, then a reboot). Pressing BOOT while driving is ignored.
+3. On the HUD screen: Wi-Fi network `HUD-Update`, password and address. Connect a phone or a PC to this network and open `http://192.168.4.1` (the page also opens on any address, the HUD redirects to it).
+4. Choose the `.bin`, press Upload. Progress is shown on the page and on the HUD. After a successful upload the HUD reboots into the new firmware.
+5. To leave without updating: press BOOT again; update mode also closes itself after 5 minutes without an upload.
+
+The Wi-Fi password is `HUD_OTA_PASS` from `secrets.h` (default `hud12345` — change it). In update mode CAN, BLE and sound are off, so it is only for the parked car. An interrupted upload does not break anything: the new image becomes active only after it is fully written, the old firmware stays. A wrong file (not a firmware image) is rejected by the updater.
 
 ---
 
@@ -264,6 +281,9 @@ If you use the BLE source with pairing, first copy `waveshare_hud_mockup/secrets
 | `HUD_WHEEL_DEFAULT` | `100` | wheel position until it arrives over CAN |
 | `HUD_BRIGHT_NO_DATA` | `170` | backlight with no light data |
 | `HUD_BRIGHT_STEP` | `4` | smoothing: change per 50 ms |
+| `HUD_OTA_BTN_PIN` / `HUD_OTA_HOLD_MS` | `0` / `1500` | OTA: BOOT pin (GPIO0) and how long to hold it, ms |
+| `HUD_OTA_SSID` | `"HUD-Update"` | OTA: access point name (password: `HUD_OTA_PASS` in `secrets.h`) |
+| `HUD_OTA_TIMEOUT_MS` | `300000` | OTA: update mode closes itself after this long without an upload |
 | `HUD_LDR_PIN` | `5` | ADC input of the photoresistor (ADC1 only: GPIO1…10) |
 | `HUD_LDR_ON` | `0` | first boot: `1` = photoresistor on (then from the menu) |
 | `HUD_LDR_DARK_MV` / `HUD_LDR_BRIGHT_MV` | `150` / `2500` | default calibration, mV (replaced by the menu calibration) |
@@ -633,6 +653,7 @@ several times (noting the times), then look for bits that change at those moment
     ├── hud_mockup.c/.h            screen: construction, update lv_timer, settings menu
     ├── hud_sound.c/.h             sound: ES8311 + I2S, own task, sound queue
     ├── hud_log.cpp/.h             log: Serial + file on the SD card
+    ├── hud_ota.cpp/.h             OTA: BOOT button, Wi-Fi access point, upload page
     ├── hud_light.cpp/.h           photoresistor on GPIO5: ADC, calibration, lux estimate
     ├── hud_settings.cpp           menu settings in flash (NVS)
     ├── hud_sounds.c/.h            PCM sounds at 22050 Hz (generated)
@@ -677,6 +698,7 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 
 - The sniffer and the HUD's own TWAI controller run in **LISTEN_ONLY** mode and never transmit on the bus (the CAN Pal TX is not connected, SLNT is tied to 3V3). Do not switch them
   to normal mode while connected to a car.
+- Update mode (OTA) runs only on a parked car: BOOT is ignored above `HUD_MENU_MAX_KMH`. Change the default Wi-Fi password in `secrets.h`.
 - The HUD must not distract: night brightness, placement, no stray LEDs.
 - This is a hobby project, not affiliated with AUDI AG or Volkswagen AG. Signal names come
   from public sources and our own logs.

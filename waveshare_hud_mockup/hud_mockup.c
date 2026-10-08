@@ -31,6 +31,7 @@
 #include "hud_nav_images.h"
 #include "hud_sound.h"
 #include "hud_light.h"
+#include "hud_ota.h"
 #include "hud_source.h"
 #include "hud_sounds.h"
 #include "psd_speedlimit.h"
@@ -1165,6 +1166,7 @@ static void menu_open_cb(lv_event_t *e)
 static void menu_timer_cb(lv_timer_t *t)
 {
     (void)t;
+    if (hud_ota_mode()) return;                            /* режим обновления: меню не нужно */
     bool req = hud_touch_take_menu_request();
     /* безопасность: меню только на стоящей машине (скорость по CAN <= HUD_MENU_MAX_KMH);
        нет скорости вовсе (стенд, нет связи) — тоже можно */
@@ -1360,6 +1362,75 @@ static void build_menu(lv_obj_t *scr)
     lv_timer_create(menu_timer_cb, 50, NULL);
 }
 #endif
+
+/* ---------- экран режима обновления (OTA) ---------- */
+static lv_obj_t *ota_box, *ota_l[5], *ota_fg;
+
+static lv_obj_t *ota_label(lv_obj_t *p, int y, uint32_t col)
+{
+    lv_obj_t *l = lv_label_create(p);
+    lv_obj_set_style_text_font(l, &hud_font_menu, 0);
+    lv_obj_set_style_text_color(l, lv_color_hex(col), 0);
+    lv_obj_set_width(l, 640);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(l, 0, y);
+    return l;
+}
+
+static void ota_timer_cb(lv_timer_t *t)
+{
+    (void)t;
+    HudOtaInfo i;
+    hud_ota_get(&i);
+    bool en = g_lang == HUD_LANG_EN;
+    char buf[96];
+    lv_label_set_text(ota_l[0], en ? "Firmware update" : "Обновление прошивки");
+    snprintf(buf, sizeof buf, en ? "Wi-Fi: %s    Password: %s" : "Wi-Fi: %s    Пароль: %s", i.ssid, i.pass);
+    lv_label_set_text(ota_l[1], buf);
+    snprintf(buf, sizeof buf, en ? "Open in a browser: http://%s" : "Откройте в браузере: http://%s", i.ip);
+    lv_label_set_text(ota_l[2], buf);
+    int pct = i.state == HUD_OTA_DONE ? 100 : (i.state == HUD_OTA_UPLOAD ? i.percent : 0);
+    lv_obj_set_width(ota_fg, pct * 560 / 100);
+    switch (i.state) {
+    case HUD_OTA_UPLOAD: snprintf(buf, sizeof buf, en ? "Uploading: %d%%" : "Загрузка: %d%%", i.percent); break;
+    case HUD_OTA_DONE:   snprintf(buf, sizeof buf, "%s", en ? "Done, rebooting..." : "Готово, перезагрузка..."); break;
+    case HUD_OTA_ERROR:  snprintf(buf, sizeof buf, en ? "Error: %s" : "Ошибка: %s", i.msg); break;
+    default:             snprintf(buf, sizeof buf, en ? "BOOT - exit, %d:%02d left" : "BOOT - выход, осталось %d:%02d",
+                                  i.left_s / 60, i.left_s % 60);
+    }
+    lv_label_set_text(ota_l[3], buf);
+    lv_obj_set_style_text_color(ota_l[3], lv_color_hex(i.state == HUD_OTA_ERROR ? 0xff5050 : 0xc0c0c0), 0);
+}
+
+static void build_ota(lv_obj_t *scr)
+{
+    ota_box = lv_obj_create(scr);
+    lv_obj_remove_style_all(ota_box);
+    lv_obj_set_size(ota_box, 640, 172);
+    lv_obj_set_pos(ota_box, 0, 0);
+    lv_obj_set_style_bg_color(ota_box, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(ota_box, LV_OPA_COVER, 0);
+    lv_obj_add_flag(ota_box, LV_OBJ_FLAG_CLICKABLE);               /* глотает касания */
+    lv_obj_clear_flag(ota_box, LV_OBJ_FLAG_SCROLLABLE);
+    ota_l[0] = ota_label(ota_box, 8, 0xffffff);
+    ota_l[1] = ota_label(ota_box, 44, 0x60c0ff);
+    ota_l[2] = ota_label(ota_box, 74, 0xffffff);
+    lv_obj_t *bg = lv_obj_create(ota_box);
+    lv_obj_remove_style_all(bg);
+    lv_obj_set_size(bg, 560, 14);
+    lv_obj_set_pos(bg, 40, 108);
+    lv_obj_set_style_bg_color(bg, lv_color_hex(0x3a3a3a), 0);
+    lv_obj_set_style_bg_opa(bg, LV_OPA_COVER, 0);
+    ota_fg = lv_obj_create(ota_box);
+    lv_obj_remove_style_all(ota_fg);
+    lv_obj_set_size(ota_fg, 0, 14);
+    lv_obj_set_pos(ota_fg, 40, 108);
+    lv_obj_set_style_bg_color(ota_fg, lv_color_hex(0x2a8a2a), 0);
+    lv_obj_set_style_bg_opa(ota_fg, LV_OPA_COVER, 0);
+    ota_l[3] = ota_label(ota_box, 136, 0xc0c0c0);
+    lv_timer_create(ota_timer_cb, 100, NULL);
+    ota_timer_cb(NULL);
+}
 
 void build_hud_mockup(void)
 {
@@ -1651,8 +1722,9 @@ void build_hud_mockup(void)
                                         &img_blink_r_outline, &img_blink_r_fill, &turn_right_sym);
 
 #if HUD_TOUCH_ENABLE
-    build_menu(scr);                       /* последним: ловушка касаний и меню поверх всего */
+    build_menu(scr);                       /* ловушка касаний и меню поверх всего */
 #endif
+    if (hud_ota_mode()) build_ota(scr);    /* режим обновления: свой экран поверх всего */
     lv_timer_create(hud_update_cb, 50, NULL);
     if (HUD_LOG_HUD) arduino_printf("[hud] экран построен, lv_timer 50 мс запущен\n");
 }

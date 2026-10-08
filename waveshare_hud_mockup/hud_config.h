@@ -84,6 +84,16 @@
 #define HUD_LDR_BRIGHT_MV     2500   /* …и «светло», мВ                                */
 #define HUD_LDR_MIN_SPAN_MV   300    /* минимальная разница «светло»−«темно» при калибровке, мВ */
 
+/* ---- Обновление прошивки по Wi-Fi (OTA) ----
+   Удержите BOOT HUD_OTA_HOLD_MS на стоящей машине: HUD перезагрузится в режим
+   обновления (точка доступа Wi-Fi + страница http://192.168.4.1). Нужна таблица
+   разделов с двумя приложениями — Инструменты → Partition Scheme →
+   «16M Flash (3MB APP/9.9MB FATFS)». Пароль точки — HUD_OTA_PASS в secrets.h. */
+#define HUD_OTA_BTN_PIN       0          /* кнопка BOOT (GPIO0)                              */
+#define HUD_OTA_HOLD_MS       1500       /* сколько держать BOOT                              */
+#define HUD_OTA_SSID          "HUD-Update"
+#define HUD_OTA_TIMEOUT_MS    300000     /* режим обновления сам закрывается через 5 мин без загрузки */
+
 /* ---- Язык и единицы ----
    Значения для самого первого запуска; дальше — из меню (сохраняются в NVS). */
 #define HUD_LANG_RU    0
