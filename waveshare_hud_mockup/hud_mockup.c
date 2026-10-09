@@ -909,7 +909,7 @@ static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y
 enum { B_LANG_RU, B_LANG_EN, B_UNIT_KM, B_UNIT_MI, B_VOL_L, B_VOL_G, B_FUEL_I, B_FUEL_A,
        B_VZE, B_PSD, B_ACCEL, B_SND, B_TOL, B_LDR, B_COUNT };
 enum { G_LANG, G_UNITS, G_VOL, G_FUEL, G_OPT, G_MORE, G_COUNT };
-static lv_obj_t *menu_box, *menu_title[G_COUNT], *menu_btn[B_COUNT], *menu_btn_lbl[B_COUNT], *menu_close_lbl;
+static lv_obj_t *menu_box, *menu_title[G_COUNT], *menu_btn[B_COUNT], *menu_btn_lbl[B_COUNT];
 static uint32_t  menu_last_touch;
 
 /* панель ползунка: 0 — громкость, 1 — допуск превышения */
@@ -967,7 +967,6 @@ static void menu_refresh(void)
     menu_sel(B_SND, false);          menu_sel(B_TOL, false);
     lv_label_set_text(menu_btn_lbl[B_LDR], en ? "Light sens." : "Датчик");
     menu_sel(B_LDR, hud_light_enabled());
-    lv_label_set_text(menu_close_lbl, LV_SYMBOL_CLOSE);
 }
 
 /* ---- панель ползунка ---- */
@@ -1021,7 +1020,9 @@ static void ov_close(void)
     hud_settings_save();
 }
 
+static uint32_t menu_btn_ms;                 /* когда в последний раз нажимали кнопку меню */
 static void menu_any_touch_cb(lv_event_t *e) { (void)e; menu_last_touch = hud_now_ms(); }
+static void menu_btn_press_cb(lv_event_t *e) { (void)e; menu_btn_ms = hud_now_ms(); menu_last_touch = menu_btn_ms; }
 
 /* ---- панель калибровки датчика света ---- */
 static void cal_text(void)
@@ -1147,7 +1148,6 @@ static void menu_btn_cb(lv_event_t *e)
 }
 
 static void menu_close(void) { ov_close(); cal_close(); lv_obj_add_flag(menu_box, LV_OBJ_FLAG_HIDDEN); }
-static void menu_close_cb(lv_event_t *e) { (void)e; menu_close(); }
 
 /* запрос меню от задачи тача (одиночное / двойное касание, HUD_MENU_DOUBLE_TAP) */
 extern bool hud_touch_take_menu_request(void);
@@ -1178,6 +1178,9 @@ static void menu_timer_cb(lv_timer_t *t)
 #endif
     if (lv_obj_has_flag(menu_box, LV_OBJ_FLAG_HIDDEN)) {
         if (req && allowed) menu_open_cb(NULL);            /* открыть по касанию */
+    } else if (req && lv_obj_has_flag(ov_box, LV_OBJ_FLAG_HIDDEN) && lv_obj_has_flag(cal_box, LV_OBJ_FLAG_HIDDEN) &&
+               hud_now_ms() - menu_btn_ms > 700) {
+        menu_close();                                      /* двойное касание мимо кнопок — закрыть */
     } else if (!allowed || hud_now_ms() - menu_last_touch >
                (lv_obj_has_flag(cal_box, LV_OBJ_FLAG_HIDDEN) ? HUD_MENU_TIMEOUT_MS : 60000)) {
         menu_close();                                      /* тронулись или нет касаний HUD_MENU_TIMEOUT_MS */
@@ -1193,7 +1196,7 @@ static lv_obj_t *menu_mk_btn(lv_obj_t *parent, int x, int y, int w, int h, lv_ob
     lv_obj_set_style_radius(b, 6, 0);
     lv_obj_set_style_shadow_width(b, 0, 0);
     lv_obj_set_style_bg_color(b, lv_color_hex(C_MENU_BTN), 0);
-    lv_obj_add_event_cb(b, menu_any_touch_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(b, menu_btn_press_cb, LV_EVENT_PRESSED, NULL);
     lv_obj_t *l = lv_label_create(b);
     lv_obj_set_style_text_font(l, &hud_font_menu, 0);
     lv_obj_set_style_text_color(l, lv_color_white(), 0);
@@ -1319,7 +1322,7 @@ static void build_menu(lv_obj_t *scr)
     lv_obj_clear_flag(menu_box, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(menu_box, menu_any_touch_cb, LV_EVENT_PRESSED, NULL);
 
-    /* 6 колонок по 98 px + кнопка закрытия 28 px */
+    /* 6 колонок по 98 px; закрытие — двойное касание мимо кнопок */
     const int colw = 98, gap = 3, x0 = 3, ytop = 36, hfull = 128, hhalf = 61, h3 = 38;
     for (int g = 0; g < G_COUNT; g++) {
         int x = x0 + g * (colw + gap);
@@ -1349,10 +1352,6 @@ static void build_menu(lv_obj_t *scr)
         lv_obj_add_event_cb(menu_btn[b], menu_btn_cb, LV_EVENT_CLICKED, (void *)(intptr_t)b);
     (void)hfull;
 
-    int xc = COLX(G_COUNT);
-    lv_obj_t *cb = menu_mk_btn(menu_box, xc, 7, 640 - xc - 3, 158, &menu_close_lbl);
-    lv_obj_set_style_text_font(menu_close_lbl, LV_FONT_DEFAULT, 0);           /* символ ✕ — во встроенном шрифте */
-    lv_obj_add_event_cb(cb, menu_close_cb, LV_EVENT_CLICKED, NULL);
     #undef COLX
 
     build_ov(scr);                         /* панель ползунка — поверх меню */
