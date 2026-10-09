@@ -125,7 +125,7 @@ Source `HUD_SRC_TWAI`: the HUD listens to I-CAN itself with the built-in TWAI co
 | **TX** | **leave unconnected** | the TJA1051 internal pull-up holds recessive — nothing can drive the bus |
 | **SLNT** | **3V3** | TJA1051 transmitter disabled (silent mode) |
 | **H / L** (terminal block) | I-CAN CAN-H / CAN-L | twisted pair |
-| middle terminal | ground | common ground |
+| middle terminal | not needed | it is already tied to the CAN Pal's own GND |
 | **Termination** switch | **OFF** | the car bus is already terminated; an extra 120 Ω degrades it |
 
 Three layers of protection against transmitting: `LISTEN_ONLY` mode, unconnected TX and SLNT tied to 3V3.
