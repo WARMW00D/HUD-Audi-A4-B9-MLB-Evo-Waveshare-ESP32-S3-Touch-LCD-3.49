@@ -188,8 +188,9 @@ static void ota_task(void *)
         s_srv->handleClient();
         uint32_t now = millis();
         if (s_restart_at && (int32_t)(now - s_restart_at) >= 0) { hud_log_write("[ota] готово — перезагрузка\n"); ESP.restart(); }
-        int left = (int)((HUD_OTA_TIMEOUT_MS - (now - s_t0)) / 1000);
-        if (left < 0) { hud_log_write("[ota] таймаут — выход\n"); ESP.restart(); }
+        int32_t left_ms = (int32_t)HUD_OTA_TIMEOUT_MS - (int32_t)(now - s_t0);      /* со знаком: unsigned давал переполнение */
+        int left = left_ms / 1000;
+        if (left_ms <= 0) { hud_log_write("[ota] таймаут — выход\n"); ESP.restart(); }
         portENTER_CRITICAL(&s_mux); s_info.left_s = left; portEXIT_CRITICAL(&s_mux);
         /* BOOT — выйти без обновления */
         static uint32_t dn;
