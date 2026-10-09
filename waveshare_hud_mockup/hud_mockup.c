@@ -86,7 +86,7 @@ extern "C" {
 #define C_BAR_OFF    0x222222
 
 /* ---------- хэндлы ---------- */
-static lv_obj_t *sign_obj, *sign_lbl, *sign_end_line, *sign_car_l, *sign_car_r;
+static lv_obj_t *sign_obj, *sign_lbl, *sign_end_line, *sign_car_l, *sign_car_r, *sign_pole;
 static lv_obj_t *spd_outline[8];          /* красная обводка цифр скорости при превышении */
 static lv_obj_t *assist_box, *as_own, *as_front, *as_arcs, *as_line_l, *as_line_r;
 static lv_obj_t *jam_icon, *lim_icon;
@@ -657,6 +657,7 @@ static void hud_update_cb(lv_timer_t *t)
         }
     }
     vis(sign_obj, smode != SIGN_HIDE);
+    vis(sign_pole, smode != SIGN_HIDE);
 
     /* --- превышение: красная обводка цифр скорости ---
        превышение = скорость - ограничение; от HUD_OVERSPEED_START % допуска обводка
@@ -1432,6 +1433,45 @@ static void build_ota(lv_obj_t *scr)
     ota_timer_cb(NULL);
 }
 
+/* полоса с горизонтальным градиентом: тёмный край -> светлая середина -> тёмный край (2 половины) */
+static void pole_half(lv_obj_t *parent, int x, int y, int w, int h, bool left)
+{
+    lv_obj_t *o = lv_obj_create(parent);
+    lv_obj_remove_style_all(o);
+    lv_obj_set_size(o, w, h);
+    lv_obj_set_pos(o, x, y);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(o, lv_color_hex(left ? 0x2a2a2a : 0xb4b4b4), 0);
+    lv_obj_set_style_bg_grad_color(o, lv_color_hex(left ? 0xb4b4b4 : 0x2a2a2a), 0);
+    lv_obj_set_style_bg_grad_dir(o, LV_GRAD_DIR_HOR, 0);
+}
+
+#define POLE_W   12     /* диаметр трубы, px  */
+#define POLE_TOP 58     /* верх (под кругом знака, круг кончается на y=66) */
+#define POLE_BOT 116    /* низ (ниже — левый поворотник на y=119)          */
+
+static lv_obj_t *make_sign_pole(lv_obj_t *scr, int cx)
+{
+    lv_obj_t *c = lv_obj_create(scr);
+    lv_obj_remove_style_all(c);
+    lv_obj_set_size(c, POLE_W + 6, POLE_BOT - POLE_TOP);
+    lv_obj_set_pos(c, cx - (POLE_W + 6) / 2, POLE_TOP);
+    lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+    int x0 = 3, h = POLE_BOT - POLE_TOP;
+    pole_half(c, x0, 0, POLE_W / 2, h, true);                 /* труба */
+    pole_half(c, x0 + POLE_W / 2, 0, POLE_W / 2, h, false);
+    int cy = 14;                                              /* хомут: чуть шире трубы, тот же объём */
+    pole_half(c, 0, cy, (POLE_W + 6) / 2, 5, true);
+    pole_half(c, (POLE_W + 6) / 2, cy, (POLE_W + 6) / 2, 5, false);
+    lv_obj_t *cap = lv_obj_create(c);                        /* торец трубы внизу */
+    lv_obj_remove_style_all(cap);
+    lv_obj_set_size(cap, POLE_W, 2);
+    lv_obj_set_pos(cap, x0, h - 2);
+    lv_obj_set_style_bg_opa(cap, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(cap, lv_color_hex(0x606060), 0);
+    return c;
+}
+
 void build_hud_mockup(void)
 {
     if (HUD_LOG_HUD) arduino_printf("[hud] build_hud_mockup(), free heap=%u\n", (unsigned)esp_get_free_heap_size());
@@ -1442,6 +1482,11 @@ void build_hud_mockup(void)
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
     int LX = 0;
+
+    /* Ножка знака: круглая труба с объёмом (тень — свет — тень по ширине), хомут под знаком.
+       Создаётся до знака, чтобы верх трубы был под кругом. Свободное место: y 66…118 (ниже — поворотник) */
+    sign_pole = make_sign_pole(scr, LX + 1 + SIGN_D / 2);
+    lv_obj_add_flag(sign_pole, LV_OBJ_FLAG_HIDDEN);
 
     /* Знак */
     sign_obj = lv_obj_create(scr);
