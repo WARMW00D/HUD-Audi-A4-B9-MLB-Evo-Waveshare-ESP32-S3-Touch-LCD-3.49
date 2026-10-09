@@ -40,8 +40,8 @@ Data is read passively from the I-CAN (infotainment) bus; nothing is ever transm
 | **ACC** | Set-speed icon + set speed. Standby is dimmed, active is bright. Nothing is shown in standby when no speed is set |
 | **Speed limiter** | `LIM` text in place of the ACC icon + limiter speed. Grey without a number = on, speed not set yet |
 | **Traffic jam assist** | Three-cars icon next to the ACC speed: grey = ready, green = active, orange = warning |
-| **ACC / Lane Assist icon** | Built from layers: own car, lead car (ACC target in the ACC colour; with `ACC_Relevantes_Objekt_02` = 2, too-close distance, **red and shown even when ACC is off**), radar waves, Lane Assist side lines |
-| **Lane Assist** | Side lines: green = line detected and LKA is steering, yellow = line not detected or LKA not steering, blinking orange = lane departure |
+| **ACC / Lane Assist icon** | Built from layers: own car, lead car (ACC target in the ACC colour; with `ACC_Relevantes_Objekt_02` = 2, too-close distance, **red and shown even when ACC is off**), radar waves, Lane Assist side lines (green/yellow/orange show the Lane Assist state; the own car is grey unless ACC is on or a dangerous approach is shown; Side Assist red lines take priority) |
+| **Lane Assist** | Each side line is coloured on its own from `LDW_02`: green = line detected, yellow = line not seen, blinking orange = lane departure warning. The own car on the icon stays grey (it is coloured by ACC only) |
 | **Side Assist** | Lane lines on the assist icon in red, **even with Lane Assist and ACC off**: car in the blind spot — the line lights up, attempted lane change — it blinks and the HUD beeps (repeats every 1.2 s while active) |
 | **Speed limit signs** | 64 px circle, red ring, Roboto Condensed Bold digits. Source priority: **PSD** (MIB route prediction) explicit sign → `VZE_01` → PSD legal limit (town 60 / rural 90 / motorway 110). PSD works even when the cluster shows no signs. Several signs (extra VZE signs, no overtaking) rotate every 1 s |
 | **Overspeed** | Red outline around the speed digits: fades in from 75 % of the tolerance and is fully red at 100 % (default tolerance 20 km/h) |
@@ -49,14 +49,15 @@ Data is read passively from the I-CAN (infotainment) bus; nothing is ever transm
 | **Doors, bonnet, boot** | Top view of the car in place of the navigation arrow, open parts in red |
 | **Navigation** | Maneuver arrow (39 variants), next maneuver as a small grey arrow in the corner, distance to maneuver, 16-segment bar graph, distance and time to destination |
 | **Pre sense** | Red triangle with "!" and the word PreSense in place of the arrow, overriding doors and navigation. Warning = steady, acute / braking = blinking |
-| **Brightness** | Ambient light × dimmer wheel. Light — `RLS_01` sensor (up to 6126 lx, above that by `Boost`, up to ~30000 lx), logarithmic; wheel — `BCM1_04` (1–100 %), linear. Four corners: dark 90 / 110, sunlight 200 / 255 (wheel min / max) |
+| **Brightness** | Ambient light × dimmer wheel. Light — `RLS_01` sensor (up to 6126 lx, above that by `Boost`, up to ~30000 lx), logarithmic; wheel — `BCM1_04` (1–100 %), linear. Four corners: dark 90 / 110, sunlight 200 / 255 (wheel min / max). Without `RLS_01` data the optional photoresistor on GPIO5 is used, then the estimate from the cluster's `Dimmung_01` |
 | **Language and units** | Russian / English, km / miles. Defaults: `HUD_LANG` and `HUD_UNITS` in `hud_config.h`; at run time: `hud_set_lang()` / `hud_set_units()` (for the future settings menu and voice control) |
 | **Acceleration bar** | Along the bottom edge under the navigation arrow, squares spread out from the centre: green = accelerating, red = braking. From CAN: `ESP_02` (longitudinal acceleration) if present on I-CAN, otherwise the derivative of the `Kombi_01` speed. Full scale: 0–100 km/h in 9 s (3.09 m/s²), braking 6 m/s² |
 | **Fuel to fill up** | Above the speed area on the left, on the gear-indicator line: pump icon and "13 L" / "3.4 gal" — how much fits until the tank is full: `HUD_TANK_L` (54 L) × (100 − level % from `BAP_BC` fct 0x1C). Litres / US gallons in the menu |
 | **Fuel consumption** | 5 px dark-grey strip on the right edge, bottom-up 0–20 L/100 km, blinks above 20. Average = the cluster trip computer "since start" (`BAP_BC`), shown at any speed. Instant only if `Motor_04` is on the bus (not found on I-CAN), from 35 km/h |
 | **Sound** | Startup sound at power-on (original, synthesised by `tools/synth_startup.py`). On-board ES8311 codec and amplifier, own FreeRTOS task — independent of rendering |
-| **Settings menu** | Double tap on the screen (`HUD_MENU_DOUBLE_TAP 0` = single tap), **only while the car is stopped**: the menu closes once moving. Language, units (km / miles and litres / gallons), fuel (instant / average) — a button each, labelled with what a tap switches to. VZE signs, PSD signs, accel bar — toggles: green on, red off (VZE and PSD can both be on). Stored in flash (NVS); closes with ✕ or after 5 s without touches |
-| **Link** | Grey Bluetooth icon while there is no connection to the sniffer |
+| **Settings menu** | Double tap on the screen (`HUD_MENU_DOUBLE_TAP 0` = single tap), **only while the car is stopped**: the menu closes once moving. Language, units (km / miles), fuel volume (litres / gallons), consumption (instant / average) — all options are shown, the active one green, the others grey. VZE, PSD, accel — toggles: green on, red off (VZE and PSD can both be on). "Sound" (0–100) and overspeed "Margin" (0–20 km/h) open a panel over the menu with a slider and − / + buttons (the volume plays a test beep). "Sensor" opens the photoresistor calibration panel (see Hardware). Stored in flash (NVS); closes with ✕ or after 10 s without touches |
+| **Firmware update (OTA)** | Hold **BOOT** for 1.5 s with the car stopped: the HUD reboots into update mode — Wi-Fi access point `HUD-Update`, the screen shows the password, the address `http://192.168.4.1` and a progress bar. Upload the `.bin` on the page, the HUD flashes it and reboots. See [Updating over Wi-Fi](#6-updating-over-wi-fi-ota) |
+| **Data-source indicator** | Bottom-left, under the navigation arrow. Grey Bluetooth icon with dots = connecting to the sniffer; dark-blue icon = BLE connected; dark-green **CAN** = frames come from the own CAN Pal transceiver. Hidden when there is no data and nothing to connect to |
 
 Any field without fresh data is **hidden** instead of showing a stale value
 (timeouts are listed in [Data sources](#data-sources-can)).
@@ -96,7 +97,7 @@ Audi I-CAN (500 kbit/s)
 
 Freshness bits (`valid`) are computed from timeouts when the snapshot is taken. The current
 time is read **inside** the critical section; otherwise a frame arriving on the other core
-could produce a "negative" age and make a field flicker (a bug fixed in v7.1).
+could produce a "negative" age and make a field flicker.
 
 ---
 
@@ -107,6 +108,8 @@ could produce a "negative" age and make a field flicker (a bug fixed in v7.1).
 | Display | Waveshare **ESP32-S3-Touch-LCD-3.49 V2**, 172×640, used in landscape as 640×172 |
 | Sniffer | ESP32-S3 (Super Mini or WROOM) + TJA1051T/3 transceiver, sniffer firmware **2.6.0+** (ACL protocol) — [esp32-CAN-sniffer-logger-screener](https://github.com/WARMW00D/esp32-CAN-sniffer-logger-screener) |
 | BLE gateway | Simplified HUD-only version of the sniffer: ESP32-S3 Super Mini + TJA1051T/3, no SD or RTC, powered from ACC. Same BLE protocol — described in the same [repository](https://github.com/WARMW00D/esp32-CAN-sniffer-logger-screener) |
+| Own CAN transceiver | Adafruit CAN Pal (5708, TJA1051T/3) — optional, instead of the BLE sniffer / gateway, see below |
+| Power | DC-DC 12 V → 5 V (3 A or more) from an ACC-switched line, through a 1–2 A fuse |
 | Bench | Log player on ESP32-S3-WROOM CAM: replays a recorded log from SD over BLE with the same UUIDs and ACL as the sniffer |
 
 
@@ -122,14 +125,40 @@ Source `HUD_SRC_TWAI`: the HUD listens to I-CAN itself with the built-in TWAI co
 | **TX** | **leave unconnected** | the TJA1051 internal pull-up holds recessive — nothing can drive the bus |
 | **SLNT** | **3V3** | TJA1051 transmitter disabled (silent mode) |
 | **H / L** (terminal block) | I-CAN CAN-H / CAN-L | twisted pair |
-| middle terminal | ground | common ground |
+| middle terminal | not needed | it is already tied to the CAN Pal's own GND |
 | **Termination** switch | **OFF** | the car bus is already terminated; an extra 120 Ω degrades it |
 
 Three layers of protection against transmitting: `LISTEN_ONLY` mode, unconnected TX and SLNT tied to 3V3.
 
 The TWAI driver requires a TX pin (`HUD_CAN_TX_PIN` = **GPIO2**), but in `LISTEN_ONLY` it always stays recessive. Leave GPIO2 unconnected on the header.
 
-Pin choice follows the board's GPIO table: used are LCD (9–14, 17, 18, 21, 42), SD (38–41), IMU/RTC/audio I²C (47, 48), I2S (6, 7, 15, 45, 46), battery (4), EXIO (8), SYS_OUT (16), USB (19, 20), UART0 (43, 44); strapping pins are 0, 3, 45, 46. Fully free: GPIO1, 2, 5. GPIO5 is a spare.
+Pin choice follows the board's GPIO table: used are LCD (9–14, 17, 18, 21, 42), SD (38–41), IMU/RTC/audio I²C (47, 48), I2S (6, 7, 15, 45, 46), battery (4), EXIO (8), SYS_OUT (16), USB (19, 20), UART0 (43, 44); strapping pins are 0, 3, 45, 46. Fully free: GPIO1, 2, 5. GPIO1 is the CAN RX, GPIO2 the TWAI TX stub; **GPIO5 (ADC1) is used by the optional photoresistor** (see below).
+
+### Optional photoresistor (light sensor)
+
+A backup light sensor for the case when `RLS_01` does not arrive over CAN (for example on the bench or with a different gateway). Build a divider: **LDR** between 3V3 and **GPIO5**, **10 kΩ** between GPIO5 and GND, **100 nF** from GPIO5 to GND. Any polarity works — the calibration works out the direction.
+
+Switch on and calibrate in the menu: **More → Sensor**. Cover the sensor completely and tap "1", then shine a bright torch at it and tap "2", then "Save" (the sensor turns on automatically; if the difference is below `HUD_LDR_MIN_SPAN_MV` the calibration is rejected). The same panel has an on / off button. Calibration and the on / off state are stored in flash. Pin and defaults: `HUD_LDR_*` in `hud_config.h`. The reading is in mV (ADC1, 11 dB, 8-sample average, smoothed); light between "dark" and "bright" is mapped linearly and then fed into the same logarithmic brightness formula as `RLS_01`.
+
+![Photoresistor divider](schematic/HUD_light_sensor_divider_en.svg)
+
+Russian version: [`schematic/HUD_light_sensor_divider_ru.svg`](schematic/HUD_light_sensor_divider_ru.svg).
+
+### Wiring diagram
+
+Power (12 V → 5 V DC-DC), CAN Pal, the optional light sensor and the display board:
+
+![Wiring diagram](schematic/HUD_wiring_CAN_DCDC_en.svg)
+
+Russian version: [`schematic/HUD_wiring_CAN_DCDC_ru.svg`](schematic/HUD_wiring_CAN_DCDC_ru.svg).
+The CAN Pal TX wire is deliberately **not connected**.
+
+### Case
+
+A 3D-printable case is in [`case/`](case): `hud_front` and `hud_rear` as `.step` and `.stl`.
+The USB port cut-out is shown in `case/hud_usb_port.png`.
+
+![Case](case/hud_preview.png)
 
 > **Tip:** remove all unnecessary LEDs from boards installed in the cabin — at night they
 > reflect in the windscreen and are distracting.
@@ -173,10 +202,28 @@ archive. Changes compared to the example:
 - `lvgl_port.c`: calls `build_hud_mockup()` instead of `lv_demo_widgets()`,
   `#include "demos/lv_demos.h"` removed.
 
-### 4. Build
+### 4. Partition scheme (needed for OTA)
 
-Open `waveshare_hud_mockup.ino` in the Arduino IDE, select the board and port, build and
+In the Arduino IDE: **Tools → Partition Scheme → "16M Flash (3MB APP/9.9MB FATFS)"** (two 3 MB application slots). Without two app slots OTA cannot work. Changing the scheme needs one flash over USB; the settings stored in flash (NVS) may be reset by it.
+
+### 5. Build
+
+Open `waveshare_hud_mockup/waveshare_hud_mockup.ino` in the Arduino IDE, select the board and port, build and
 flash. Serial runs at 115200.
+
+If you use the BLE source with pairing, first copy `waveshare_hud_mockup/secrets.example.h` to `secrets.h` in the same folder and set `BLE_PASSKEY` (see "Passkey pairing" below). Without `secrets.h` the sketch still builds; pairing protection is off.
+
+---
+
+### 6. Updating over Wi-Fi (OTA)
+
+1. In the Arduino IDE: **Sketch → Export Compiled Binary**. Take the file `waveshare_hud_mockup.ino.bin` from the sketch's `build` folder (not the `bootloader`, `partitions` or `merged` files).
+2. Stop the car, hold **BOOT** on the HUD for 1.5 s (a beep, then a reboot). Pressing BOOT while driving is ignored.
+3. On the HUD screen: Wi-Fi network `HUD-Update`, password and address. Connect a phone or a PC to this network and open `http://192.168.4.1` (the page also opens on any address, the HUD redirects to it).
+4. Choose the `.bin`, press Upload. Progress is shown on the page and on the HUD. After a successful upload the HUD reboots into the new firmware.
+5. To leave without updating: press BOOT again; update mode also closes itself after 5 minutes without an upload.
+
+The Wi-Fi password is `HUD_OTA_PASS` from `secrets.h` (default `hud12345` — change it). In update mode CAN, BLE and sound are off, so it is only for the parked car. An interrupted upload does not break anything: the new image becomes active only after it is fully written, the old firmware stays. A wrong file (not a firmware image) is rejected by the updater.
 
 ---
 
@@ -185,6 +232,7 @@ flash. Serial runs at 115200.
 | Setting | Default | Meaning |
 |---|---|---|
 | `HUD_DATA_SOURCE` | `HUD_SRC_AUTO` | frame source: `HUD_SRC_AUTO` = own CAN Pal transceiver while it receives frames, otherwise BLE from the sniffer / gateway; `HUD_SRC_BLE` = BLE only; `HUD_SRC_TWAI` = own transceiver only; `HUD_SRC_FAKE` = built-in generator |
+| `HUD_BLE_PAIR_MSG_AFTER` | `3` | this many pairing failures in a row — a hint on the screen (the passkey is in `secrets.h`) |
 | `HUD_AUTO_CAN_HOLD_MS` | `1000` | AUTO: this many ms without CAN frames — switch to BLE |
 | `HUD_CAN_RX_PIN` / `HUD_CAN_TX_PIN` | `1` / `2` | TWAI pins (only for `HUD_SRC_TWAI`), see "Own transceiver" |
 | `HUD_CAN_BITRATE_K` | `500` | bus bit rate, kbit/s |
@@ -207,15 +255,15 @@ flash. Serial runs at 115200.
 | `HUD_SOUND_ENABLE` | `1` | `0` = sound fully off, the codec is not initialised |
 | `HUD_SOUND_STARTUP` | `1` | startup sound at power-on |
 | `HUD_SOUND_STARTUP_DELAY_MS` | `300` | pause before the startup sound |
-| `HUD_SOUND_VOLUME` | `25` | volume 0…100 (at run time: `hud_sound_set_volume()`) |
+| `HUD_SOUND_VOLUME` | `25` | volume 0…100 on first boot (then from the menu, stored in flash; at run time: `hud_sound_set_volume()`) |
 | `HUD_PSD_LIMITS` / `HUD_VZE_SIGNS` | `1` / `1` | signs from PSD / from VZE_01 on first boot (then from the menu) |
 | `HUD_PSD_LEGAL_DELAY_MS` | `1000` | delay before switching from explicit sign to legal limit |
 | `HUD_SIGN_CYCLE_MS` | `1000` | several signs rotate, this many ms each |
-| `HUD_OVERSPEED_TOL_KMH` / `HUD_OVERSPEED_START` | `20` / `75` | overspeed tolerance, km/h, and the % of it where the outline starts to appear |
+| `HUD_OVERSPEED_TOL_KMH` / `HUD_OVERSPEED_START` | `20` / `75` | overspeed tolerance on first boot, km/h (0…20, then from the menu; km/h also in mile mode), and the % of it where the outline starts to appear |
 | `HUD_TOUCH_ENABLE` | `1` | tap the screen for the settings menu; `0` = touch not polled |
 | `HUD_MENU_DOUBLE_TAP` / `HUD_DOUBLE_TAP_MS` | `1` / `400` | menu on double tap (window for the second tap, ms); `0` = single tap |
 | `HUD_MENU_ONLY_STOPPED` / `HUD_MENU_MAX_KMH` | `1` / `0` | menu only at speed ≤ 0 km/h (allowed when there is no speed data) |
-| `HUD_MENU_TIMEOUT_MS` | `5000` | the menu closes after 5 s without touches |
+| `HUD_MENU_TIMEOUT_MS` | `10000` | the menu closes after 10 s without touches |
 | `HUD_VOLUME_GAL` / `HUD_TANK_L` | `0` / `54` | "fuel to fill up" in gallons on first boot (then from the menu) / tank size, L |
 | `HUD_SNIFFER_NAME` | `"S3-CAN-Sniffer"` | advertised name of the sniffer |
 | `HUD_LOG_BLE` | `1` | `[BLE]` sniffer connection, ACL write and read-back, errors |
@@ -223,7 +271,7 @@ flash. Serial runs at 115200.
 | `HUD_LOG_STAT` | `0` | `[BLE]` every 10 s: frames, losses, max speed-frame gap |
 | `HUD_LOG_CAN` | `0` | `[CAN]` every 10 s: per-ID counters and last data |
 | `HUD_LOG_DIM` | `0` | `[dim]` every 10 s: `Dimmung_01` data and the backlight set |
-| `HUD_LOG_BAP` | `0` | `[nav]` every navigation maneuver change (full 0x17 message in hex), unknown MainElement codes |
+| `HUD_LOG_BAP` | `0` | `[nav]` every navigation maneuver change (full 0x17 message in hex), unknown MainElement codes; `[bap]` changes of the Navigation_SD functions that are not decoded (for research) |
 | `HUD_LOG_HUD` | `1` | `[hud]` screen construction, speed hidden by timeout |
 | `HUD_LOG_LVGL` | `1` | `[LVGL]` LVGL messages (also needs `LV_USE_LOG 1`) |
 | `LKA_MIN_INTERVAL_MS` | `500` | ACL interval for `LDW_02` |
@@ -233,6 +281,13 @@ flash. Serial runs at 115200.
 | `HUD_WHEEL_DEFAULT` | `100` | wheel position until it arrives over CAN |
 | `HUD_BRIGHT_NO_DATA` | `170` | backlight with no light data |
 | `HUD_BRIGHT_STEP` | `4` | smoothing: change per 50 ms |
+| `HUD_OTA_BTN_PIN` / `HUD_OTA_HOLD_MS` | `0` / `1500` | OTA: BOOT pin (GPIO0) and how long to hold it, ms |
+| `HUD_OTA_SSID` | `"HUD-Update"` | OTA: access point name (password: `HUD_OTA_PASS` in `secrets.h`) |
+| `HUD_OTA_TIMEOUT_MS` | `300000` | OTA: update mode closes itself after this long without an upload |
+| `HUD_LDR_PIN` | `5` | ADC input of the photoresistor (ADC1 only: GPIO1…10) |
+| `HUD_LDR_ON` | `0` | first boot: `1` = photoresistor on (then from the menu) |
+| `HUD_LDR_DARK_MV` / `HUD_LDR_BRIGHT_MV` | `150` / `2500` | default calibration, mV (replaced by the menu calibration) |
+| `HUD_LDR_MIN_SPAN_MV` | `300` | smallest allowed "bright" − "dark" difference at calibration, mV |
 
 ---
 
@@ -247,7 +302,7 @@ Screen is 640×172. Coordinates are the top-left corner of each element.
 | Navigation arrow / car view | 145, 5 | 192×140 | arrow 192×116 + distance line below (`hud_font_route`) |
 | Distance bar graph | 339, up to y=145 | 16 segments 14×7, pitch 9 | — |
 | Route: icon / text | 5, 132 / 25, 128 | 2 lines | `hud_font_route` |
-| No-link icon | 150, 150 | — | `LV_SYMBOL_BLUETOOTH` |
+| Data-source indicator | x = 290, bottom edge −2 px (`LINK_BOTTOM_MARGIN`) | — | `LV_SYMBOL_BLUETOOTH` / text `CAN` |
 | Gear mode | 376…626, y=1 | right edge aligned with speed digits | `hud_font_gear` |
 | Speed | 376…632, y=20 | width 256, right-aligned | `hud_font_speed` |
 | ACC icon / LIM text | 364, 145 / 364, 149 | 29×26 / 31×13 | `img_acc_set` / `img_limiter` |
@@ -290,14 +345,14 @@ static inline uint32_t sig(const uint8_t *d, int start, int len) {
 | Turn signals | 0x366 | Blinkmodi_02 | left / right phase, hazard | 27, 28, 20 | bit | ✅ |
 | Sign | 0x181 | VZE_01 | VZE_Verkehrszeichen_1 | 11\|8 | code; limit = 5 × code (8 → 40, 12 → 60, 16 → 80) | ✅ three points |
 | Sign: suppress / overspeed | 0x181 | VZE_01 | Anzeigeunterdrueck_1 / Warnung_1 | 50 / 35 | bit | ⚠️ |
-| Lane Assist | 0x397 | LDW_02 | green / yellow LED | 62 / 61 | bit | ⚠️ |
+| Lane Assist LEDs | 0x397 | LDW_02 | green / yellow LED | 62 / 61 | bit | ⚠️ green does not arrive while driving; not used for colours |
 | LKA lines | 0x397 | LDW_02 | Lernmodus_links / _rechts | 38\|2 / 36\|2 | 0 off, 1 not seen, 2 seen, 3 departure | ✅ 0→1 when switched on |
 | LKA warning | 0x397 | LDW_02 | Warnung_links / _rechts | 56 / 57 | bit | ⚠️ |
 | Doors, boot | 0x583 | ZV_02 | ZV_FT/BT/HFS/HBFS/HD_offen | 24…28 | bit | ✅ |
 | Bonnet | 0x65A | BCM_01 | BCM1_MH_Schalter | 31 | bit | ✅ |
-| Acceleration | 0x101 | ESP_02 | ESP_Laengsbeschl | 24\|10 | ×0.03125 − 16 m/s² | ⚠️ opendbc MLB, check presence on I-CAN |
+| Acceleration | 0x101 | ESP_02 | ESP_Laengsbeschl | 24\|10 | ×0.03125 − 16 m/s² | ❌ not found on I-CAN (opendbc MLB); fallback is used |
 | Acceleration (fallback) | 0x30B | Kombi_01 | KBI_angez_Geschw (derivative) | 48\|10 | ×0.32 km/h | ✅ layout |
-| Brakes | 0x106 | ESP_05 | ESP_Bremsdruck / ESP_Fahrer_bremst | 16\|10 / 26 | ×0.3 − 30 bar / bit | ⚠️ opendbc MLB |
+| Brakes | 0x106 | ESP_05 | ESP_Bremsdruck / ESP_Fahrer_bremst | 16\|10 / 26 | ×0.3 − 30 bar / bit | ❌ not found on I-CAN (opendbc MLB) |
 | PSD: segments | 0x462 | PSD_04 | Segment_ID / Vorgaenger / Segmentlaenge / Strassenkategorie / Bebauung | 0\|6 / 6\|6 / 12\|7 / 19\|3 / 43 | length ×2 m | ✅ drives 29.09 |
 | PSD: position | 0x463 | PSD_05 | Pos_Segment_ID / Pos_Segmentlaenge (remaining) | 0\|6 / 6\|7 | ×2 m | ✅ |
 | PSD: limits | 0x464 | PSD_06 mux 2 | Ges_Segment_ID / Offset / Geschwindigkeit / Typ / Ueberholverbot / Gesetzlich_Kategorie | 3\|6 / 9\|7 / 16\|5 / 21\|2 / 49\|2 / 56\|3 | code → km/h (lower bound), 23 = end | ✅ |
@@ -306,13 +361,14 @@ static inline uint32_t sig(const uint8_t *d, int start, int len) {
 | Dimmer wheel | 0x64F | BCM1_04 | BCM1_Stellgroesse_Kl_58s | 25\|7 | 1–100 % | ✅ log 0003 |
 | Light sensor | 0x5A0 | RLS_01 | LS_Helligkeit_FW / LS_Helligkeit_IR / RLS_Vorfeldhelligkeit_Boost / RS_Regenmenge | 8\|10 / 0\|8 / 35\|4 / 24\|4 | ×6 lx (≤1021) / ×400 lx / 0–15 / ×10 % | ✅ drives 0006/0010 |
 | Date and time | 0x6B2 | Diagnose_01 | UH_Jahr / Monat / Tag / Stunde / Minute / Sekunde | 28\|7 / 35\|4 / 39\|5 / 44\|5 / 49\|6 / 55\|6 | year +2000 | ⚠️ opendbc; frame present on I-CAN |
-| Fuel | 0x107 | Motor_04 | MO_KVS (counter, µL) | 48\|15 | wraps at 32768 | ⚠️ opendbc MLB |
+| Fuel | 0x107 | Motor_04 | MO_KVS (counter, µL) | 48\|15 | wraps at 32768 | ❌ not found on I-CAN (opendbc MLB) |
 | Pre sense | 0x2A9 | ACC_15 | AWV_Warnung | 16\|3 | 0 none, 1 latent, 2 warning, 3 acute, 4 braking, 5 take over, 6 turning | ⚠️ from opendbc MQB |
 | Brightness | 0x5F0 | Dimmung_01 | DI_KL_58xd / DI_Display_Nachtdesign | 0\|8 / 15 | final display brightness 10–100 % (254 Init, 255 error) / night design | ✅ log 0003, dimmer wheel |
 
 `LDW_02`: **do not use** bits 12–15 (`LDW_Gong`, `LDW_SW_Warnung_*`) — on this car byte 1
 is always `0x40`. When LKA is switched on while parked, LEDs 61/62 do not change but the
-lines go to 1 — so "LKA on" = any line non-zero.
+lines go to 1 — so "LKA on" = any line non-zero. The line colours come only from the two
+2-bit line values (1 = not seen → yellow, 2 = seen → green, 3 = departure → orange).
 
 ### Navigation: BAP Navigation_SD (29-bit)
 
@@ -350,6 +406,16 @@ Header: `opcode = hdr>>12 & 7` (3 = HeartbeatStatus, 4 = Status), `lsg = hdr>>6 
 ## Sniffer → HUD BLE protocol
 
 The full protocol description on the sniffer/gateway side is in [esp32-CAN-sniffer-logger-screener](https://github.com/WARMW00D/esp32-CAN-sniffer-logger-screener). Below is what the HUD needs.
+
+### Passkey pairing (sniffer 2.8.0+, gateway 1.2.0+)
+
+If the device has a `BLE_PASSKEY` (six digits), the HUD must pair with the same code. Full description: `BLE_pairing_protocol_ru.md` in the sniffer repository.
+
+1. Copy `secrets.example.h` to `secrets.h` next to the sketch and set `#define BLE_PASSKEY 123456` — **the same code as in the device's `secrets.h`** (no leading zeros). `secrets.h` is in `.gitignore` and is not published.
+2. `BLE_PASSKEY 0` or no `secrets.h` — protection off, the HUD works as before (with devices that also have `BLE_PASSKEY 0`). With a code in the HUD and none in the device there will be no link: the HUD treats a channel without a passkey as untrusted and disconnects.
+3. Order: connect → `secureConnection()` → check "encrypted **and** authenticated" → only then subscribe to `…0008` and write the ACL. The first connection stores keys (bonding); later connections use the keys without a code.
+4. The device keeps **one slot**: if a phone or a camera connected before the HUD, reset the pairings with the **BOOT button held for 5 s** on the running device.
+5. On failure the HUD retries with 2→10 s pauses, at most three times a minute (after 5 failures the device blocks pairing for 60 s). On the second failure in a row it deletes its own bond (the device may have been reset). After `HUD_BLE_PAIR_MSG_AFTER` (3) failures the screen shows a hint instead of the Bluetooth icon: *"Pairing rejected. Check the passkey or reset pairings on the device: hold BOOT for 5 s."*
 
 Service `A1B2C3D4-0001-41A2-9E3B-000000000001`, device `S3-CAN-Sniffer`.
 
@@ -454,7 +520,7 @@ body, the road under an arrow).
 | `tools/gen_hud_images.py` | turn signals, car view (body, lights, 6 parts × underlay + red mask), ACC/LKA icon layers (outlined cars, waves, lane lines with triangles), ACC icon, traffic jam icon (three outlined cars), LIM text (Montserrat Bold) | `hud_images.c/.h`, `tools/preview_*.png` |
 | `tools/gen_nav_images.py` | 2 sets of 39 arrows (main 192×116 and small 38×23 for the next maneuver): 16 turns, 16 roundabouts, exits, forks, U-turns, destination | `hud_nav_images.c/.h`, `tools/preview_nav.png` |
 
-Requires Python 3 and Pillow (`pip install pillow`). Run from the sketch folder:
+Requires Python 3 and Pillow (`pip install pillow`). Run from the repository root; the output goes straight into `waveshare_hud_mockup/`:
 
 ```bash
 python tools/gen_hud_images.py
@@ -474,7 +540,7 @@ Graphics flash usage: ~40 KB icons and car view + ~200 KB arrows.
 | 0x0D, 0x1C | Turn, PrepareTurn | turn, sector `((dir + 8) >> 4) & 15` |
 | 0x15, 0x16 | Roundabout | roundabout, exit sector |
 | 0x0F / 0x10 | Exit Right / Left | motorway exit |
-| 0x13, 0x14 | Fork | fork, side from Direction |
+| 0x13, 0x14 | Exit / fork (the native navigation sends a ramp exit with this code) | exit picture (straight road + branch), side from Direction; the cluster draws it the same way |
 | 0x19 | U-turn | U-turn |
 | 0x03 | Arrived | destination |
 | 0x09, 0x0A | route calculation | "..." |
@@ -547,48 +613,60 @@ several times (noting the times), then look for bits that change at those moment
 | `lvgl/lvgl.h` not found when building a font | missing `#define LV_LVGL_H_INCLUDE_SIMPLE` | add it at the top of the font `.c` |
 | Box instead of a character | character not in the font | regenerate with the needed `--symbols` |
 | Image is a black square / black silhouette | `img_recolor_opa = 0` | create it through `car_img()` |
-| A field flickers occasionally | race between cores (fixed in v7.1) | never touch LVGL outside the `lv_timer` |
+| A field flickers occasionally | race between cores | never touch LVGL outside the `lv_timer` |
 | A field disappears while its value is steady | `ONCHANGE` in the ACL | use an interval instead of `ONCHANGE` |
 | `printf` output missing from the serial monitor | on the S3 a bare `printf` may go to UART0 instead of USB CDC | use `Serial` / `arduino_printf()` |
 | No connection to the sniffer | sniffer firmware below 2.6.0 — no `…0007/…0008` | update the sniffer |
-| LKA lines not shown while parked | parked LKA is "on, not steering" | expected: lines are yellow when lane values = 1 |
+| Lane Assist lines are yellow although the cluster shows green | line value 1 = "not seen" | expected: each line follows its own `LDW_02` value (2 = green); check the sign convention with `HUD_LOG_CAN` |
+| `i2s_channel_disable … has not been enabled yet` in the log | the codec driver closes an already stopped I²S channel | harmless; the firmware re-enables the channel after `close()` |
 
 ---
 
 ## File structure
 
 ```
-waveshare_hud_mockup/
-├── waveshare_hud_mockup.ino   setup(): LVGL, backlight, BLE start; LVGL log to Serial
-├── hud_config.h               build settings
-├── hud_data.h                 HudData, valid bits, decoder API
-├── can_decode.c               CAN and BAP decoder, timeouts, diagnostics
-├── hud_source.cpp/.h          frame source selection (BLE / TWAI / AUTO / generator)
-├── ble_can_client.cpp         NimBLE client, ACL list, frame generator
-├── can_twai_source.cpp        own transceiver: TWAI in LISTEN_ONLY
-├── hud_mockup.c/.h            screen: construction and the update lv_timer
-├── hud_sound.c/.h             sound: ES8311 + I2S, own task, sound queue
-├── hud_log.cpp/.h             log: Serial + file on the SD card
-├── hud_settings.cpp           menu settings in flash (NVS)
-├── hud_sounds.c/.h            PCM sounds at 22050 Hz (generated)
-├── src/esp_codec_dev/         Espressif codec driver (from the Waveshare 08_Audio_Test example)
-├── vze_table.h                sign code table + ACC_Tempolimit
-├── psd_speedlimit.c/.h        speed limits from PSD (MIB route prediction)
-├── hud_images.c/.h            icons and car view (generated)
-├── hud_nav_images.c/.h        navigation arrows (generated)
-├── hud_font_*.c               Montserrat fonts (generated)
-├── lvgl_port.c/.h, i2c_bsp.*, user_config.h, src/   Waveshare BSP
-└── tools/
-    ├── gen_hud_images.py      icon and car view generator
-    ├── gen_nav_images.py      arrow generator
-    ├── can_bitdiff.py         find changing bits in a log
-    ├── make_sounds.py         sounds from tools/sounds/ to hud_sounds.c (needs ffmpeg)
-    ├── synth_startup.py       synthesises the startup sound from scratch (numpy), own rights
-    ├── sounds/                sound sources (startup.wav, swa_beep.wav — synthesised)
-    ├── fonts/                 Montserrat, OFL, make_fonts.py
-    ├── icons/                 source of the ACC set-speed icon
-    └── preview_*.png          graphics previews
+.
+├── README.md, README_ru.md
+├── LICENSE
+├── .gitignore                 secrets.h is never published
+├── case/                      3D-printable case: hud_front / hud_rear (.step, .stl), previews
+├── schematic/                 wiring diagram (DC-DC, CAN Pal): HUD_wiring_CAN_DCDC_en.svg / _ru.svg
+├── tools/
+│   ├── gen_hud_images.py      icon and car view generator
+│   ├── gen_nav_images.py      arrow generator
+│   ├── can_bitdiff.py         find changing bits in a log
+│   ├── make_sounds.py         sounds from tools/sounds/ to hud_sounds.c (needs ffmpeg)
+│   ├── synth_startup.py       synthesises the startup sound from scratch (numpy), own rights
+│   ├── sounds/                sound sources (startup.wav, swa_beep.wav — synthesised)
+│   ├── fonts/                 Montserrat, Roboto Condensed, OFL, make_fonts.py
+│   ├── icons/                 source of the ACC set-speed icon
+│   └── preview_*.png          graphics previews
+└── waveshare_hud_mockup/      the Arduino sketch (open the .ino from here)
+    ├── waveshare_hud_mockup.ino   setup(): LVGL, backlight, sources, sound; LVGL log to Serial
+    ├── hud_config.h               build settings
+    ├── hud_data.h                 HudData, valid bits, decoder API
+    ├── can_decode.c               CAN and BAP decoder, timeouts, diagnostics
+    ├── secrets.example.h          secrets template (BLE_PASSKEY); your own secrets.h is in .gitignore
+    ├── hud_source.cpp/.h          frame source selection (BLE / TWAI / AUTO / generator), current-source API
+    ├── ble_can_client.cpp         NimBLE client, ACL list, frame generator
+    ├── can_twai_source.cpp        own transceiver: TWAI in LISTEN_ONLY
+    ├── hud_mockup.c/.h            screen: construction, update lv_timer, settings menu
+    ├── hud_sound.c/.h             sound: ES8311 + I2S, own task, sound queue
+    ├── hud_log.cpp/.h             log: Serial + file on the SD card
+    ├── hud_ota.cpp/.h             OTA: BOOT button, Wi-Fi access point, upload page
+    ├── hud_light.cpp/.h           photoresistor on GPIO5: ADC, calibration, lux estimate
+    ├── hud_settings.cpp           menu settings in flash (NVS)
+    ├── hud_sounds.c/.h            PCM sounds at 22050 Hz (generated)
+    ├── src/esp_codec_dev/         Espressif codec driver (from the Waveshare 08_Audio_Test example)
+    ├── vze_table.h                sign code table + ACC_Tempolimit
+    ├── psd_speedlimit.c/.h        speed limits from PSD (MIB route prediction)
+    ├── hud_images.c/.h            icons and car view (generated)
+    ├── hud_nav_images.c/.h        navigation arrows (generated)
+    ├── hud_font_*.c               Montserrat / Roboto Condensed fonts (generated)
+    └── lvgl_port.c/.h, i2c_bsp.*, user_config.h, src/   Waveshare BSP
 ```
+
+The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 
 ---
 
@@ -596,18 +674,18 @@ waveshare_hud_mockup/
 
 **To verify while driving:**
 
-- VZE sign code table — empty, to be filled by calibration (`vze_calibrate.py` on a driving
-  log: matching codes against `ACC_Tempolimit`);
+- VZE sign codes: the limit is `5 × code`, `vze_table.h` only holds exceptions — more driving
+  logs are welcome (the table can be filled by comparing codes with `ACC_Tempolimit`);
+- priority between PSD and VZE signs when they disagree;
+- Side Assist (`SWA_01`) on the car;
 - `ACC_Tempolimit`, lead target, traffic jam assist, ACA lane centering;
 - Lane Assist while driving: lane values 2 and 3, warnings;
 - 8th gear, S and M modes;
 - limiter on kick-down (probably a separate bit); bit 58 of 0x31E — purpose unknown;
-- navigation: codes 0x13/0x14 (which fork is right), 0x15/0x16 (difference between
-  roundabouts), direction of `Direction`.
+- navigation: codes 0x13/0x14 for a real two-way fork (a ramp exit is confirmed: it is drawn as an exit, like the cluster does).
 
 **Roadmap:**
 
-- brightness from the car's light sensor over CAN (default) or from a photoresistor;
 - speed camera database (SCDB): signs and a warning when approaching the fine threshold —
   on the HUD itself, using the car's GNSS from I-CAN, configurable threshold;
 - roundabout exit number and street names (BAP `TurnToInfo`, side streets from
@@ -618,8 +696,9 @@ waveshare_hud_mockup/
 
 ## Safety and legal notes
 
-- The sniffer runs in **LISTEN_ONLY** mode and never transmits on the bus. Do not switch it
+- The sniffer and the HUD's own TWAI controller run in **LISTEN_ONLY** mode and never transmit on the bus (the CAN Pal TX is not connected, SLNT is tied to 3V3). Do not switch them
   to normal mode while connected to a car.
+- Update mode (OTA) runs only on a parked car: BOOT is ignored above `HUD_MENU_MAX_KMH`. Change the default Wi-Fi password in `secrets.h`.
 - The HUD must not distract: night brightness, placement, no stray LEDs.
 - This is a hobby project, not affiliated with AUDI AG or Volkswagen AG. Signal names come
   from public sources and our own logs.
