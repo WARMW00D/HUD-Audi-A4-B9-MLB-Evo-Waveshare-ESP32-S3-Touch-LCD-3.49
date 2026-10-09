@@ -1020,9 +1020,7 @@ static void ov_close(void)
     hud_settings_save();
 }
 
-static uint32_t menu_btn_ms;                 /* когда в последний раз нажимали кнопку меню */
 static void menu_any_touch_cb(lv_event_t *e) { (void)e; menu_last_touch = hud_now_ms(); }
-static void menu_btn_press_cb(lv_event_t *e) { (void)e; menu_btn_ms = hud_now_ms(); menu_last_touch = menu_btn_ms; }
 
 /* ---- панель калибровки датчика света ---- */
 static void cal_text(void)
@@ -1178,9 +1176,8 @@ static void menu_timer_cb(lv_timer_t *t)
 #endif
     if (lv_obj_has_flag(menu_box, LV_OBJ_FLAG_HIDDEN)) {
         if (req && allowed) menu_open_cb(NULL);            /* открыть по касанию */
-    } else if (req && lv_obj_has_flag(ov_box, LV_OBJ_FLAG_HIDDEN) && lv_obj_has_flag(cal_box, LV_OBJ_FLAG_HIDDEN) &&
-               hud_now_ms() - menu_btn_ms > 700) {
-        menu_close();                                      /* двойное касание мимо кнопок — закрыть */
+    } else if (req && lv_obj_has_flag(ov_box, LV_OBJ_FLAG_HIDDEN) && lv_obj_has_flag(cal_box, LV_OBJ_FLAG_HIDDEN)) {
+        menu_close();                                      /* двойное касание где угодно — закрыть */
     } else if (!allowed || hud_now_ms() - menu_last_touch >
                (lv_obj_has_flag(cal_box, LV_OBJ_FLAG_HIDDEN) ? HUD_MENU_TIMEOUT_MS : 60000)) {
         menu_close();                                      /* тронулись или нет касаний HUD_MENU_TIMEOUT_MS */
@@ -1196,7 +1193,7 @@ static lv_obj_t *menu_mk_btn(lv_obj_t *parent, int x, int y, int w, int h, lv_ob
     lv_obj_set_style_radius(b, 6, 0);
     lv_obj_set_style_shadow_width(b, 0, 0);
     lv_obj_set_style_bg_color(b, lv_color_hex(C_MENU_BTN), 0);
-    lv_obj_add_event_cb(b, menu_btn_press_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(b, menu_any_touch_cb, LV_EVENT_PRESSED, NULL);
     lv_obj_t *l = lv_label_create(b);
     lv_obj_set_style_text_font(l, &hud_font_menu, 0);
     lv_obj_set_style_text_color(l, lv_color_white(), 0);
@@ -1322,21 +1319,21 @@ static void build_menu(lv_obj_t *scr)
     lv_obj_clear_flag(menu_box, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(menu_box, menu_any_touch_cb, LV_EVENT_PRESSED, NULL);
 
-    /* 6 колонок по 98 px; закрытие — двойное касание мимо кнопок */
+    /* 6 колонок по 98 px; закрытие — двойное касание где угодно; колонка «Прочее» шире */
     const int colw = 98, gap = 3, x0 = 3, ytop = 36, hfull = 128, hhalf = 61, h3 = 38;
     for (int g = 0; g < G_COUNT; g++) {
         int x = x0 + g * (colw + gap);
         menu_title[g] = lv_label_create(menu_box);
         lv_obj_set_style_text_font(menu_title[g], &hud_font_menu, 0);
         lv_obj_set_style_text_color(menu_title[g], lv_color_hex(C_MENU_DIM), 0);
-        lv_obj_set_width(menu_title[g], colw);
+        lv_obj_set_width(menu_title[g], g == G_MORE ? colw + 28 : colw);
         lv_obj_set_style_text_align(menu_title[g], LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_pos(menu_title[g], x, 7);
     }
     #define COLX(g) (x0 + (g) * (colw + gap))
     #define Y2(i)   (ytop + (i) * (hhalf + 6))
     #define Y3(i)   (ytop + (i) * (h3 + 6))
-    #define MKB(id, g, y, h) menu_btn[id] = menu_mk_btn(menu_box, COLX(g), y, colw, h, &menu_btn_lbl[id])
+    #define MKB(id, g, y, h) menu_btn[id] = menu_mk_btn(menu_box, COLX(g), y, (g) == G_MORE ? colw + 28 : colw, h, &menu_btn_lbl[id])
     MKB(B_LANG_RU, G_LANG,  Y2(0), hhalf);  MKB(B_LANG_EN, G_LANG,  Y2(1), hhalf);
     MKB(B_UNIT_KM, G_UNITS, Y2(0), hhalf);  MKB(B_UNIT_MI, G_UNITS, Y2(1), hhalf);
     MKB(B_VOL_L,   G_VOL,   Y2(0), hhalf);  MKB(B_VOL_G,   G_VOL,   Y2(1), hhalf);
