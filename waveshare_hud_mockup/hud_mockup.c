@@ -77,8 +77,7 @@ extern "C" {
 #define SIGN_D       64    /* диаметр знака         */
 #define SIGN_RING    7     /* толщина красного кольца */
 #define C_SIGN_WARN  0xff8080
-#define C_NAV_ARROW  0x30b0f0   /* голубой, как у Audi */
-#define C_NAV_PLATE  0x3c4044   /* серая подложка под стрелкой */
+#define C_NAV_ARROW  0xeaf4ff
 #define C_NAV_NEXT   0xa8a8a8
 #define LINK_BOTTOM_MARGIN 2     /* отступ значка источника от нижнего края экрана, px */
 #define C_LINK_BLE   0x1f4fb0   /* BLE подключён */
@@ -101,7 +100,7 @@ static lv_obj_t *ps_box, *ps_tri;           /* предупреждение pre 
 #define ACC_Y        (172 - ACC_SQ)   /* самый низ экрана, подальше от дистанции до манёвра */
 static lv_obj_t *acc_sq[2][ACC_SEG];
 static lv_obj_t *fuel_bar;               /* расход топлива, правый край */
-static lv_obj_t *arrow_ph, *nav_plate, *arrow_img, *arrow_lbl, *nav_dist_lbl, *next_img;
+static lv_obj_t *arrow_ph, *arrow_img, *arrow_lbl, *nav_dist_lbl, *next_img;
 static lv_obj_t *bar_seg[16];
 static lv_obj_t *route_icon, *route_lbl;
 static lv_obj_t *speed_lbl;
@@ -791,7 +790,6 @@ static void hud_update_cb(lv_timer_t *t)
         ni_last = ni;
         bool calc = (d.man_main == 0x09 || d.man_main == 0x0A);
         vis(arrow_img, ni != NULL);
-        vis(nav_plate, ni != NULL);
         vis(arrow_lbl, ni == NULL && calc);             /* расчёт маршрута; 0x00/0x01 — пусто */
 
 #if HUD_LOG_BAP
@@ -1496,18 +1494,6 @@ void build_hud_mockup(void)
     lv_obj_set_size(arrow_ph, 192, 140);
     lv_obj_set_pos(arrow_ph, LX + 145, 5);
     lv_obj_clear_flag(arrow_ph, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-    nav_plate = lv_obj_create(arrow_ph);                       /* подложка: серая, белая окантовка (как у Audi) */
-    lv_obj_remove_style_all(nav_plate);
-    lv_obj_set_size(nav_plate, NAV_AREA_W, NAV_AREA_H);
-    lv_obj_set_pos(nav_plate, 0, 0);
-    lv_obj_set_style_radius(nav_plate, 10, 0);
-    lv_obj_set_style_bg_color(nav_plate, lv_color_hex(C_NAV_PLATE), 0);
-    lv_obj_set_style_bg_opa(nav_plate, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(nav_plate, lv_color_white(), 0);
-    lv_obj_set_style_border_width(nav_plate, 2, 0);
-    lv_obj_set_style_border_opa(nav_plate, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(nav_plate, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(nav_plate, LV_OBJ_FLAG_HIDDEN);
     arrow_img = car_img(arrow_ph, nav_big.turn[0].img, nav_big.turn[0].x, nav_big.turn[0].y, C_NAV_ARROW);
     lv_obj_add_flag(arrow_img, LV_OBJ_FLAG_HIDDEN);
     next_img = car_img(arrow_ph, nav_small.turn[0].img, 0, 0, C_NAV_NEXT);   /* следующий манёвр */
