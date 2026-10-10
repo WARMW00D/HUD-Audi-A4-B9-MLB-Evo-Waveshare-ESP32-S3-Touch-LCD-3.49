@@ -28,9 +28,27 @@ HEAD_W, HEAD_L = 36, 22         # наконечник
 ROAD_W = 22                     # дорога-контекст
 ROAD_A = 70                     # яркость дороги (для маски стрелки не используется — дорога идёт отдельным слоем)
 ARROW_A = 255                   # яркость стрелки при рисовании (255 — слой стрелки; ROAD_FILL — слой дороги)
+SKIP = 1                        # значение-«не рисовать»: в слое дороги стрелка пропускается целиком
+CUT_A = 0                       # яркость «вырезов» формы стрелки (в слое дороги не вырезаем дорогу)
+SHADOW = 3                      # тень стрелки на дороге: смещение вниз, px
+SHADOW_K = 0.6                  # насколько тень затемняет дорогу (0..1)
 ROAD_FILL = 100                 # слой дороги: заливка (серый на чёрном фоне HUD)
 ROAD_BORDER = 2                 # слой дороги: белая кайма, px
 CX, JY, BY = W / 2, 60, H - 4   # центр, перекрёсток, низ
+
+class SD(ImageDraw.ImageDraw):
+    """ImageDraw, пропускающий фигуры с fill == SKIP (стрелка в слое дороги)."""
+    def _skip(self, k): return k.get('fill') == SKIP
+    def line(self, *a, **k):
+        if not self._skip(k): super().line(*a, **k)
+    def ellipse(self, *a, **k):
+        if not self._skip(k): super().ellipse(*a, **k)
+    def polygon(self, *a, **k):
+        if not self._skip(k): super().polygon(*a, **k)
+    def rectangle(self, *a, **k):
+        if not self._skip(k): super().rectangle(*a, **k)
+    def arc(self, *a, **k):
+        if not self._skip(k): super().arc(*a, **k)
 
 def cv():
     return Image.new("L", (W * S, H * S), 0)
@@ -83,7 +101,7 @@ def fit_len(ox, oy, v, margin=4):
 # ------------------------------------------------------------------ манёвры ---
 def img_turn(sector):
     ang = sector * 22.5
-    im = cv(); d = ImageDraw.Draw(im)
+    im = cv(); d = SD(im)
     v = vec(ang)
     # дорога: прямо через перекрёсток + выбранное направление
     line(d, [(CX, BY + 6), (CX, 4)], ROAD_W, ROAD_A)
@@ -110,7 +128,7 @@ def img_turn(sector):
     return im
 
 def img_uturn(left=True):
-    im = cv(); d = ImageDraw.Draw(im)
+    im = cv(); d = SD(im)
     s = -1 if left else 1
     R = 20
     top = 30
@@ -125,8 +143,8 @@ def img_uturn(left=True):
     box = [(cx - R - ARROW_W / 2) * S, (top - ARROW_W / 2) * S, (cx + R + ARROW_W / 2) * S, (top + 2 * R + ARROW_W / 2) * S]
     d.ellipse(box, fill=ARROW_A)
     inner = [(cx - R + ARROW_W / 2) * S, (top + ARROW_W / 2) * S, (cx + R - ARROW_W / 2) * S, (top + 2 * R - ARROW_W / 2) * S]
-    d.ellipse(inner, fill=0)
-    d.rectangle([(cx - R - ARROW_W) * S, (top + R) * S, (cx + R + ARROW_W) * S, (top + 2 * R + ARROW_W) * S], fill=0)
+    d.ellipse(inner, fill=CUT_A)
+    d.rectangle([(cx - R - ARROW_W) * S, (top + R) * S, (cx + R + ARROW_W) * S, (top + 2 * R + ARROW_W) * S], fill=CUT_A)
     d.line(P([(CX, top + R), (CX, BY)]), fill=ARROW_A, width=int(ARROW_W * S))
     d.ellipse([(CX - r) * S, (BY - r) * S, (CX + r) * S, (BY + r) * S], fill=ARROW_A)
     tip_y = 86
@@ -136,7 +154,7 @@ def img_uturn(left=True):
 
 def img_roundabout(sector):
     ang = sector * 22.5
-    im = cv(); d = ImageDraw.Draw(im)
+    im = cv(); d = SD(im)
     rc, R = (CX, 46), 29
     RW = 11                                   # толщина стрелки на кольце
     # все съезды серым: 4 основных луча + кольцо
@@ -175,7 +193,7 @@ def img_roundabout(sector):
     return im
 
 def img_exit(right=True):
-    im = cv(); d = ImageDraw.Draw(im)
+    im = cv(); d = SD(im)
     s = 1 if right else -1
     xm = CX - s * 14
     line(d, [(xm, BY + 6), (xm, 4)], ROAD_W, ROAD_A)
@@ -185,7 +203,7 @@ def img_exit(right=True):
     return im
 
 def img_fork(right=True):
-    im = cv(); d = ImageDraw.Draw(im)
+    im = cv(); d = SD(im)
     s = 1 if right else -1
     line(d, [(CX, BY + 6), (CX, 64), (CX - 36, 24), (CX - 44, 4)], ROAD_W, ROAD_A)
     line(d, [(CX, 64), (CX + 36, 24), (CX + 44, 4)], ROAD_W, ROAD_A)
@@ -196,7 +214,7 @@ def img_straight():
     return img_turn(0)
 
 def img_arrived():
-    im = cv(); d = ImageDraw.Draw(im)
+    im = cv(); d = SD(im)
     # метка-капля с отверстием
     cx, cy, r = CX, 42, 24
     d.ellipse([(cx - r) * S, (cy - r) * S, (cx + r) * S, (cy + r) * S], fill=ARROW_A)
@@ -245,15 +263,19 @@ def persp(im):
     co = np.linalg.solve(np.array(A, float), np.array(B, float))
     return im.transform(im.size, Image.PERSPECTIVE, tuple(co), Image.BICUBIC)
 
-def road_layer(union):
-    """Слой дороги: серая заливка + белая кайма снаружи. union — холст (S-кратный), где дорога
-    и след стрелки нарисованы одной яркостью."""
+def road_layer(road, arrow):
+    """Слой дороги: серая заливка + белая кайма только по дороге + тёмная тень стрелки на дороге
+    (сдвиг вниз). road/arrow — холсты (S-кратные): дорога без стрелки и стрелка без дороги."""
     q = 4
-    u = union.resize((W * q, H * q), Image.LANCZOS)
+    u = road.resize((W * q, H * q), Image.LANCZOS)
     m = u.point(lambda v: 255 if v >= 40 else 0)
     dil = m.filter(ImageFilter.MaxFilter(2 * ROAD_BORDER * q + 1))
     border = ImageChops.subtract(dil, m)
     fill = m.point(lambda v: ROAD_FILL if v else 0)
+    sh = arrow.resize((W * q, H * q), Image.LANCZOS)
+    sh = ImageChops.offset(sh, 0, SHADOW * q)
+    sh = sh.filter(ImageFilter.GaussianBlur(1.2 * q))
+    fill = ImageChops.multiply(fill, sh.point(lambda v: int(255 - SHADOW_K * v)))
     return ImageChops.lighter(border, fill).resize((W, H), Image.LANCZOS)
 
 SW, SH = 38, 23                 # маленькая стрелка "следующий манёвр" (1/5)
@@ -267,7 +289,7 @@ def main():
     def build(prefix, size, round_road=None, road_layers=False):
         global ROAD_A, ARROW_A
         def add(name, fn, *args, road=True):
-            global ROAD_A, ARROW_A
+            global ROAD_A, ARROW_A, CUT_A
             saved = ROAD_A
             if road_layers:
                 ROAD_A = 0                                   # слой стрелки — без дороги
@@ -275,11 +297,11 @@ def main():
             big = fn(*args)
             if road_layers: big = persp(big)
             if road_layers and road:
-                ROAD_A = ROAD_FILL; ARROW_A = ROAD_FILL      # слой дороги: дорога + след стрелки одним тоном
+                ROAD_A = ROAD_FILL; ARROW_A = SKIP; CUT_A = SKIP   # слой дороги: только дорога, без стрелки
                 un = persp(fn(*args))
-                rc, rx, ry = crop(road_layer(un))
+                rc, rx, ry = crop(road_layer(un, big))
                 roads[prefix + name] = (rc, rx, ry)
-            ROAD_A = saved; ARROW_A = 255
+            ROAD_A = saved; ARROW_A = 255; CUT_A = 0
             c, x, y = crop(big.resize(size, Image.LANCZOS))
             imgs.append((prefix + name, c, x, y))
         for s_ in range(16): add(f"turn_{s_:02d}", img_turn, s_)
