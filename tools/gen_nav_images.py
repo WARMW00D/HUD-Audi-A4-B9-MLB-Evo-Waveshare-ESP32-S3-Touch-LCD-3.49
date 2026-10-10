@@ -275,8 +275,9 @@ def road_layer(road, arrow):
     sh = arrow.resize((W * q, H * q), Image.LANCZOS)
     sh = ImageChops.offset(sh, 0, SHADOW * q)
     sh = sh.filter(ImageFilter.GaussianBlur(1.2 * q))
-    fill = ImageChops.multiply(fill, sh.point(lambda v: int(255 - SHADOW_K * v)))
-    return ImageChops.lighter(border, fill).resize((W, H), Image.LANCZOS)
+    shade = sh.point(lambda v: int(255 - SHADOW_K * v))      # множитель яркости: 255 — без тени
+    # тень ложится и на кайму: дорога + кайма одним слоем, затем затемнение под стрелкой
+    return ImageChops.multiply(ImageChops.lighter(border, fill), shade).resize((W, H), Image.LANCZOS)
 
 SW, SH = 38, 23                 # маленькая стрелка "следующий манёвр" (1/5)
 
