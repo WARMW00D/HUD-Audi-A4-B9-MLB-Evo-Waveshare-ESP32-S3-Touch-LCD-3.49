@@ -8,7 +8,7 @@
 #define NAV_SMALL_W 38
 #define NAV_SMALL_H 23
 
-typedef struct { const lv_img_dsc_t *img; int16_t x, y; } NavImg;   /* x,y — смещение в своей области */
+typedef struct { const lv_img_dsc_t *img; int16_t x, y; const lv_img_dsc_t *road; int16_t rx, ry; } NavImg;   /* x,y — смещение в своей области; road — слой дороги под стрелкой (серый с белой каймой) или NULL */
 
 /* Набор стрелок: turn[16] — сектор 0..15 (22.5 град, против часовой от 'прямо'),
    round[16] — кольцо, сектор съезда; exit/fork/uturn: [0] налево, [1] направо */
