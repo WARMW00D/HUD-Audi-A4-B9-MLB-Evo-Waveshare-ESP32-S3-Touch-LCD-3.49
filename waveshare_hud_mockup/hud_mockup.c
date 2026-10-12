@@ -213,7 +213,7 @@ static void diag_build(lv_obj_t *scr)
     dg_cc = lv_label_create(scr);  lv_label_set_text(dg_cc, "");
     lv_obj_set_style_text_font(dg_cc, LV_FONT_DEFAULT, 0); lv_obj_set_pos(dg_cc, 20, 70);
     dg_src = lv_label_create(scr); lv_label_set_text(dg_src, "");
-    lv_obj_set_style_text_font(dg_src, LV_FONT_DEFAULT, 0); lv_obj_set_pos(dg_src, 50, 70);
+    lv_obj_set_style_text_font(dg_src, LV_FONT_DEFAULT, 0); lv_obj_set_pos(dg_src, 46, 70);
 
     for (int i = 0; i < 3; i++) {                      /* полоски 5/9/13 px, общий низ y=106 */
         int h = 5 + 4 * i;
@@ -233,18 +233,24 @@ static void diag_build(lv_obj_t *scr)
 static void diag_update(uint32_t now, uint8_t src)
 {
     psd_diag_t g; psd_get_diag(now, &g);
-    char b[48];
+    char b[96];
 
-    /* точка: серая — PSD молчит; зелёная — ADAS-качество 1 и категория сегмента != 7 */
-    if (!g.adas_fresh && !g.pos_fresh) set_bg_color(dg_dot, C_GRAY);
-    else set_bg_color(dg_dot, (g.adas_q && !(g.pos_fresh && g.cat_cur == 7)) ? C_GREEN : 0xff3030);
+    /* точка: серая — PSD_05 молчит; зелёная — не Off-Road, категория сегмента != 7 (Init)
+       и ADAS-качество сегмента 1 */
+    if (!g.pos_fresh) set_bg_color(dg_dot, C_GRAY);
+    else set_bg_color(dg_dot, (g.pos_err != 7 && g.cat_cur != 7 && g.adas_q) ? C_GREEN : 0xff3030);
 
     if (!g.m0_fresh) set_text(dg_cc, "--");
     else if (g.country == 178) set_text(dg_cc, "RU");
     else if (g.country == 20)  set_text(dg_cc, "BY");
     else { snprintf(b, sizeof b, "%u", g.country); set_text(dg_cc, b); }
 
-    set_text(dg_src, src == 1 ? "V" : src == 2 ? "P" : "");
+    /* V — знак от VZE_01; для PSD вторая буква — источник знака в карте:
+       A — VZA (ассистент), O — VZO (онлайн), B — оба */
+    if (src == 2) {
+        char t[3] = { 'P', g.sign_src_ok ? (g.sign_src == 2 ? 'O' : g.sign_src == 3 ? 'B' : 'A') : 0, 0 };
+        set_text(dg_src, t);
+    } else set_text(dg_src, src == 1 ? "V" : "");
     set_text_color(dg_src, src == 1 ? C_YELLOW : C_GREEN);
 
     int lvl = g.m0_fresh && g.qual_avail ? (g.qual_tempo + 1) / 2 : 0;
@@ -256,11 +262,13 @@ static void diag_update(uint32_t now, uint8_t src)
     static uint32_t log_t = 0;
     if (now - log_t >= 10000u) {
         log_t = now;
-        snprintf(b, sizeof b, "PSD diag n04=%lu q1=%lu c7=%lu",
-                 (unsigned long)g.n04, (unsigned long)g.n04_q1, (unsigned long)g.n04_cat7);
-        char l[128];
-        snprintf(l, sizeof l, "%s | seg cat=%u urb=%u pos=%u | cc=%u g=%u qa=%u qt=%u\n", b,
-                 g.cat_cur, g.urban_cur, g.pos_fresh, g.country, g.guidance, g.qual_avail, g.qual_tempo);
+        snprintf(b, sizeof b, "PSD diag n04=%lu q1=%lu c7=%lu n05=%lu off=%lu",
+                 (unsigned long)g.n04, (unsigned long)g.n04_q1, (unsigned long)g.n04_cat7,
+                 (unsigned long)g.n05, (unsigned long)g.n05_off);
+        char l[256];
+        snprintf(l, sizeof l, "%s | seg cat=%u adas=%u urb=%u pos=%u err=%u | mm=%u geo=%u cc=%u g=%u qa=%u qt=%u src=%u\n", b,
+                 g.cat_cur, g.adas_q, g.urban_cur, g.pos_fresh, g.pos_err, g.mm_qual, g.geom_qual,
+                 g.country, g.guidance, g.qual_avail, g.qual_tempo, g.sign_src);
         hud_log_write(l);
     }
 }

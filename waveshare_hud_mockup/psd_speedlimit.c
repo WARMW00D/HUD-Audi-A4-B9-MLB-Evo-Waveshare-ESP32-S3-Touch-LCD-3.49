@@ -33,6 +33,7 @@ typedef struct {
     uint16_t len_m;
     uint8_t  cat;            /* 0..5, 5 — магистраль */
     uint8_t  urban;
+    uint8_t  adas;           /* PSD_ADAS_Qualitaet */
 } seg_t;
 
 typedef struct {
@@ -53,8 +54,8 @@ static uint32_t s_pos_t;
 static bool     s_pos_ok;
 static psd_limit_t s_last_explicit;
 static uint32_t s_last_explicit_t;
-static uint8_t  s_adas_q, s_m0_country, s_m0_guid, s_m0_qa, s_m0_qt;
-static uint32_t s_adas_t, s_m0_t, s_n04, s_n04_q1, s_n04_cat7;
+static uint8_t  s_m0_country, s_m0_guid, s_m0_qa, s_m0_qt, s_m0_mm, s_m0_geo, s_pos_err, s_m2_src;
+static uint32_t s_adas_t, s_m0_t, s_m2_t, s_n04, s_n04_q1, s_n04_cat7, s_n05, s_n05_off;
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static inline uint32_t sg(const uint8_t *d, int start, int len)
@@ -77,7 +78,7 @@ void psd_reset(void)
 {
     taskENTER_CRITICAL(&s_mux);
     memset(s_seg, 0, sizeof s_seg); memset(s_rec, 0, sizeof s_rec); memset(s_legal, 0, sizeof s_legal);
-    s_adas_t = s_m0_t = 0; s_n04 = s_n04_q1 = s_n04_cat7 = 0;
+    s_adas_t = s_m0_t = s_m2_t = 0; s_n04 = s_n04_q1 = s_n04_cat7 = s_n05 = s_n05_off = 0;
     s_pos_ok = false; s_last_explicit.kmh = 0; s_last_explicit_t = 0;
     taskEXIT_CRITICAL(&s_mux);
 }
@@ -88,11 +89,11 @@ void psd_on_frame(uint32_t id, const uint8_t *in, uint8_t dlc, uint32_t now)
     memcpy(d, in, dlc > 8 ? 8 : dlc);
     taskENTER_CRITICAL(&s_mux);
     if (id == 0x462) {                                           /* PSD_04 */
-        s_adas_q = sg(d, 37, 1); s_adas_t = now ? now : 1;
-        s_n04++; if (s_adas_q) s_n04_q1++; if (sg(d, 19, 3) == 7) s_n04_cat7++;
+        s_adas_t = now ? now : 1;
+        s_n04++; if (sg(d, 37, 1)) s_n04_q1++; if (sg(d, 19, 3) == 7) s_n04_cat7++;
         uint8_t sid = sg(d, 0, 6);
         if (sid >= 2) {
-            seg_t n = { true, (uint8_t)sg(d, 6, 6), (uint16_t)(sg(d, 12, 7) * 2), (uint8_t)sg(d, 19, 3), (uint8_t)sg(d, 43, 1) };
+            seg_t n = { true, (uint8_t)sg(d, 6, 6), (uint16_t)(sg(d, 12, 7) * 2), (uint8_t)sg(d, 19, 3), (uint8_t)sg(d, 43, 1), (uint8_t)sg(d, 37, 1) };
             seg_t *o = &s_seg[sid];
             if (o->ok && (o->prev != n.prev || o->len_m != n.len_m))   /* ID занят другим сегментом */
                 for (int k = 0; k < NREC; k++) if (s_rec[k].ok && s_rec[k].seg == sid) s_rec[k].ok = false;
@@ -102,10 +103,13 @@ void psd_on_frame(uint32_t id, const uint8_t *in, uint8_t dlc, uint32_t now)
         s_pos_seg = sg(d, 0, 6);
         s_pos_remain = (uint16_t)(sg(d, 6, 7) * 2);
         s_pos_t = now; s_pos_ok = s_pos_seg >= 2;
+        s_pos_err = sg(d, 19, 3); s_n05++; if (s_pos_err == 7) s_n05_off++;
     } else if (id == 0x464 && sg(d, 0, 3) == 0) {                /* PSD_06 mux 0 */
         s_m0_country = sg(d, 9, 8); s_m0_guid = sg(d, 26, 1);
         s_m0_qa = sg(d, 38, 1); s_m0_qt = sg(d, 57, 3); s_m0_t = now ? now : 1;
+        s_m0_mm = sg(d, 21, 2); s_m0_geo = sg(d, 19, 2);
     } else if (id == 0x464 && sg(d, 0, 3) == 2) {                /* PSD_06 mux 2 */
+        s_m2_src = sg(d, 61, 2); s_m2_t = now ? now : 1;
         uint8_t typ = sg(d, 21, 2);
         bool cond = sg(d, 29, 2) || sg(d, 31, 2) || sg(d, 33, 3) || sg(d, 36, 3) ||
                     (sg(d, 39, 5) != 25 && sg(d, 39, 5) != 0) || (sg(d, 44, 5) != 25 && sg(d, 44, 5) != 0);
@@ -136,11 +140,13 @@ void psd_get_diag(uint32_t now, psd_diag_t *o)
     o->cat_cur = 7;
     taskENTER_CRITICAL(&s_mux);
     o->pos_fresh = s_pos_ok && now - s_pos_t < 3000;
-    if (o->pos_fresh && s_seg[s_pos_seg].ok) { o->cat_cur = s_seg[s_pos_seg].cat; o->urban_cur = s_seg[s_pos_seg].urban; }
-    o->adas_fresh = s_adas_t && now - s_adas_t < 3000; o->adas_q = s_adas_q;
+    if (o->pos_fresh && s_seg[s_pos_seg].ok) { o->cat_cur = s_seg[s_pos_seg].cat; o->urban_cur = s_seg[s_pos_seg].urban; o->adas_q = s_seg[s_pos_seg].adas; }
+    o->adas_fresh = s_adas_t && now - s_adas_t < 3000;
+    o->pos_err = s_pos_err; o->mm_qual = s_m0_mm; o->geom_qual = s_m0_geo;
+    o->sign_src = s_m2_src; o->sign_src_ok = s_m2_t && now - s_m2_t < 5000;
     o->m0_fresh = s_m0_t && now - s_m0_t < 5000;
     o->country = s_m0_country; o->guidance = s_m0_guid; o->qual_avail = s_m0_qa; o->qual_tempo = s_m0_qt;
-    o->n04 = s_n04; o->n04_q1 = s_n04_q1; o->n04_cat7 = s_n04_cat7;
+    o->n04 = s_n04; o->n04_q1 = s_n04_q1; o->n04_cat7 = s_n04_cat7; o->n05 = s_n05; o->n05_off = s_n05_off;
     taskEXIT_CRITICAL(&s_mux);
 }
 
