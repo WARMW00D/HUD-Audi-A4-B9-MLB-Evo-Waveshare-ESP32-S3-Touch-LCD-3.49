@@ -35,6 +35,7 @@
 #include "hud_source.h"
 #include "hud_sounds.h"
 #include "psd_speedlimit.h"
+#include "hud_log.h"
 #include "src/lcd_bl_bsp/lcd_bl_pwm_bsp.h"
 
 /* Шрифты: Montserrat Bold (SIL OFL 1.1) с табличными цифрами — см. tools/fonts/ */
@@ -174,13 +175,13 @@ static const char *gear_text(uint8_t g)
 
 enum { SIGN_HIDE, SIGN_LIMIT, SIGN_END, SIGN_RAW, SIGN_NOOVT };
 
-typedef struct { uint8_t mode; uint16_t val; } SignItem;
+typedef struct { uint8_t mode; uint16_t val; uint8_t src; } SignItem;   /* src: 0 —, 1 VZE, 2 PSD */
 
 /* Код VZE -> знак. allow_fallback: для основного знака можно взять ACC_Tempolimit
    и показать сырой код; для дополнительных знаков 2/3 — только то, что точно известно. */
 static SignItem vze_eval(uint8_t code, bool suppress, uint8_t tl, bool allow_fallback)
 {
-    SignItem it = { SIGN_HIDE, 0 };
+    SignItem it = { SIGN_HIDE, 0, 1 };
     if (!code || suppress) return it;
     const VzeEntry *e = &vze_table[code];
     if (e->type == VZE_LIMIT)               { it.mode = SIGN_LIMIT; it.val = e->value; }
@@ -194,6 +195,76 @@ static SignItem vze_eval(uint8_t code, bool suppress, uint8_t tl, bool allow_fal
     else                                    { it.mode = SIGN_RAW; it.val = code; }
     return it;
 }
+
+#if HUD_PSD_DIAG
+/* ---------- диагностика привязки к карте (HUD_PSD_DIAG), под знаком ---------- */
+#define DG_OFF 0x444444
+static lv_obj_t *dg_dot, *dg_cc, *dg_src, *dg_bar[3], *dg_home, *dg_gps;
+
+static void diag_build(lv_obj_t *scr)
+{
+    dg_dot = lv_obj_create(scr);
+    lv_obj_set_size(dg_dot, 12, 12); lv_obj_set_pos(dg_dot, 3, 72);
+    lv_obj_set_style_radius(dg_dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(dg_dot, 0, 0);
+    lv_obj_set_style_bg_color(dg_dot, lv_color_hex(C_GRAY), 0);
+    lv_obj_clear_flag(dg_dot, LV_OBJ_FLAG_SCROLLABLE);
+
+    dg_cc = lv_label_create(scr);  lv_label_set_text(dg_cc, "");
+    lv_obj_set_style_text_font(dg_cc, LV_FONT_DEFAULT, 0); lv_obj_set_pos(dg_cc, 20, 70);
+    dg_src = lv_label_create(scr); lv_label_set_text(dg_src, "");
+    lv_obj_set_style_text_font(dg_src, LV_FONT_DEFAULT, 0); lv_obj_set_pos(dg_src, 50, 70);
+
+    for (int i = 0; i < 3; i++) {                      /* полоски 5/9/13 px, общий низ y=106 */
+        int h = 5 + 4 * i;
+        dg_bar[i] = lv_obj_create(scr);
+        lv_obj_set_size(dg_bar[i], 5, h); lv_obj_set_pos(dg_bar[i], 3 + 7 * i, 106 - h);
+        lv_obj_set_style_radius(dg_bar[i], 0, 0);
+        lv_obj_set_style_border_width(dg_bar[i], 0, 0);
+        lv_obj_set_style_bg_color(dg_bar[i], lv_color_hex(DG_OFF), 0);
+        lv_obj_clear_flag(dg_bar[i], LV_OBJ_FLAG_SCROLLABLE);
+    }
+    dg_home = lv_label_create(scr); lv_label_set_text(dg_home, LV_SYMBOL_HOME);
+    lv_obj_set_style_text_font(dg_home, LV_FONT_DEFAULT, 0); lv_obj_set_pos(dg_home, 28, 92);
+    dg_gps = lv_label_create(scr);  lv_label_set_text(dg_gps, LV_SYMBOL_GPS);
+    lv_obj_set_style_text_font(dg_gps, LV_FONT_DEFAULT, 0); lv_obj_set_pos(dg_gps, 46, 92);
+}
+
+static void diag_update(uint32_t now, uint8_t src)
+{
+    psd_diag_t g; psd_get_diag(now, &g);
+    char b[48];
+
+    /* точка: серая — PSD молчит; зелёная — ADAS-качество 1 и категория сегмента != 7 */
+    if (!g.adas_fresh && !g.pos_fresh) set_bg_color(dg_dot, C_GRAY);
+    else set_bg_color(dg_dot, (g.adas_q && !(g.pos_fresh && g.cat_cur == 7)) ? C_GREEN : 0xff3030);
+
+    if (!g.m0_fresh) set_text(dg_cc, "--");
+    else if (g.country == 178) set_text(dg_cc, "RU");
+    else if (g.country == 20)  set_text(dg_cc, "BY");
+    else { snprintf(b, sizeof b, "%u", g.country); set_text(dg_cc, b); }
+
+    set_text(dg_src, src == 1 ? "V" : src == 2 ? "P" : "");
+    set_text_color(dg_src, src == 1 ? C_YELLOW : C_GREEN);
+
+    int lvl = g.m0_fresh && g.qual_avail ? (g.qual_tempo + 1) / 2 : 0;
+    for (int i = 0; i < 3; i++) set_bg_color(dg_bar[i], i < lvl ? C_GREEN : DG_OFF);
+
+    set_text_color(dg_home, g.pos_fresh && g.urban_cur ? C_YELLOW : DG_OFF);
+    set_text_color(dg_gps,  g.m0_fresh && g.guidance ? C_GREEN : DG_OFF);
+
+    static uint32_t log_t = 0;
+    if (now - log_t >= 10000u) {
+        log_t = now;
+        snprintf(b, sizeof b, "PSD diag n04=%lu q1=%lu c7=%lu",
+                 (unsigned long)g.n04, (unsigned long)g.n04_q1, (unsigned long)g.n04_cat7);
+        char l[128];
+        snprintf(l, sizeof l, "%s | seg cat=%u urb=%u pos=%u | cc=%u g=%u qa=%u qt=%u\n", b,
+                 g.cat_cur, g.urban_cur, g.pos_fresh, g.country, g.guidance, g.qual_avail, g.qual_tempo);
+        hud_log_write(l);
+    }
+}
+#endif
 
 /* Дистанция BAP (×10 + единица) -> текст. Шрифт hud_font_route содержит
    только символы 0x20..0x6D, поэтому из единиц доступны "m", "km", "mi". */
@@ -609,11 +680,11 @@ static void hud_update_cb(lv_timer_t *t)
         uint8_t tl = (d.valid & V_ACC) ? d.acc_tempolimit : 0;
         bool sv = g_vze && (d.valid & V_SIGN);              /* знаки VZE выключены в меню — не смотрим */
 
-        SignItem main = { SIGN_HIDE, 0 };
-        if (psd_expl)                                        { main.mode = SIGN_LIMIT; main.val = pe_kmh; }
+        SignItem main = { SIGN_HIDE, 0, 0 };
+        if (psd_expl)                                        { main.mode = SIGN_LIMIT; main.val = pe_kmh; main.src = 2; }
         if (main.mode == SIGN_HIDE && sv)                    main = vze_eval(d.sign_raw, d.sign_suppress, tl, true);
         if (main.mode == SIGN_HIDE && (P.src == PSD_LIM_LEGAL || P.src == PSD_LIM_ENDED))
-                                                             { main.mode = SIGN_LIMIT; main.val = P.kmh; }
+                                                             { main.mode = SIGN_LIMIT; main.val = P.kmh; main.src = 2; }
         if (main.mode != SIGN_HIDE) items[n_items++] = main;
 
         if (sv) {
@@ -624,16 +695,22 @@ static void hud_update_cb(lv_timer_t *t)
         }
         if ((psd_expl && pe_novt) || (sv && (vze_eval(d.sign_raw2, d.sign_sup2, 0, false).mode == SIGN_NOOVT ||
                                              vze_eval(d.sign_raw3, d.sign_sup3, 0, false).mode == SIGN_NOOVT)))
-            if (n_items < 4) items[n_items++] = (SignItem){ SIGN_NOOVT, 0 };
+            if (n_items < 4) items[n_items++] = (SignItem){ SIGN_NOOVT, 0, (psd_expl && pe_novt) ? 2 : 1 };
 
         /* ограничение для контроля превышения — всегда основной знак */
         lim_kmh_for_speed = (main.mode == SIGN_LIMIT) ? main.val : 0;
     }
 
     int smode = SIGN_HIDE; uint16_t sval = 0;
+#if HUD_PSD_DIAG
+    uint8_t diag_src = 0;
+#endif
     if (n_items) {
         SignItem it = items[(now / HUD_SIGN_CYCLE_MS) % n_items];
         smode = it.mode; sval = it.val;
+#if HUD_PSD_DIAG
+        diag_src = it.src;
+#endif
     }
     if (smode != SIGN_HIDE) {
         bool warn_ph = d.sign_warn && (now % 500) < 250;
@@ -658,6 +735,9 @@ static void hud_update_cb(lv_timer_t *t)
         }
     }
     vis(sign_obj, smode != SIGN_HIDE);
+#if HUD_PSD_DIAG
+    diag_update(now, diag_src);
+#endif
 
     /* --- превышение: красная обводка цифр скорости ---
        превышение = скорость - ограничение; от HUD_OVERSPEED_START % допуска обводка
@@ -1477,6 +1557,9 @@ void build_hud_mockup(void)
     lv_obj_add_flag(sign_car_r, LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_style_pad_all(sign_obj, 0, 0);
     lv_obj_add_flag(sign_obj, LV_OBJ_FLAG_HIDDEN);
+#if HUD_PSD_DIAG
+    diag_build(scr);
+#endif
 
     /* ACC / LKA */
     /* Значок ACC / Lane Assist — слои-маски, цвет каждого задаётся отдельно */

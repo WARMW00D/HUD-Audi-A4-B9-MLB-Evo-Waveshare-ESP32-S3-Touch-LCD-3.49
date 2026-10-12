@@ -259,6 +259,7 @@ The Wi-Fi password is `HUD_OTA_PASS` from `secrets.h` (default `hud12345` — ch
 | `HUD_PSD_LIMITS` / `HUD_VZE_SIGNS` | `1` / `1` | signs from PSD / from VZE_01 on first boot (then from the menu) |
 | `HUD_PSD_LEGAL_DELAY_MS` | `1000` | delay before switching from explicit sign to legal limit |
 | `HUD_SIGN_CYCLE_MS` | `1000` | several signs rotate, this many ms each |
+| `HUD_PSD_DIAG` | `0` | debug only, no menu entry: indicators under the sign — map-match dot (green/red, grey = PSD silent), 3 speed-limit quality bars, country code, built-up icon, guidance icon, sign source letter (V = VZE, P = PSD); logs PSD_04 frame counters every 10 s |
 | `HUD_OVERSPEED_TOL_KMH` / `HUD_OVERSPEED_START` | `20` / `75` | overspeed tolerance on first boot, km/h (0…20, then from the menu; km/h also in mile mode), and the % of it where the outline starts to appear |
 | `HUD_TOUCH_ENABLE` | `1` | tap the screen for the settings menu; `0` = touch not polled |
 | `HUD_MENU_DOUBLE_TAP` / `HUD_DOUBLE_TAP_MS` | `1` / `400` | menu on double tap (window for the second tap, ms); `0` = single tap |

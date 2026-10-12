@@ -53,6 +53,8 @@ static uint32_t s_pos_t;
 static bool     s_pos_ok;
 static psd_limit_t s_last_explicit;
 static uint32_t s_last_explicit_t;
+static uint8_t  s_adas_q, s_m0_country, s_m0_guid, s_m0_qa, s_m0_qt;
+static uint32_t s_adas_t, s_m0_t, s_n04, s_n04_q1, s_n04_cat7;
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static inline uint32_t sg(const uint8_t *d, int start, int len)
@@ -75,6 +77,7 @@ void psd_reset(void)
 {
     taskENTER_CRITICAL(&s_mux);
     memset(s_seg, 0, sizeof s_seg); memset(s_rec, 0, sizeof s_rec); memset(s_legal, 0, sizeof s_legal);
+    s_adas_t = s_m0_t = 0; s_n04 = s_n04_q1 = s_n04_cat7 = 0;
     s_pos_ok = false; s_last_explicit.kmh = 0; s_last_explicit_t = 0;
     taskEXIT_CRITICAL(&s_mux);
 }
@@ -85,6 +88,8 @@ void psd_on_frame(uint32_t id, const uint8_t *in, uint8_t dlc, uint32_t now)
     memcpy(d, in, dlc > 8 ? 8 : dlc);
     taskENTER_CRITICAL(&s_mux);
     if (id == 0x462) {                                           /* PSD_04 */
+        s_adas_q = sg(d, 37, 1); s_adas_t = now ? now : 1;
+        s_n04++; if (s_adas_q) s_n04_q1++; if (sg(d, 19, 3) == 7) s_n04_cat7++;
         uint8_t sid = sg(d, 0, 6);
         if (sid >= 2) {
             seg_t n = { true, (uint8_t)sg(d, 6, 6), (uint16_t)(sg(d, 12, 7) * 2), (uint8_t)sg(d, 19, 3), (uint8_t)sg(d, 43, 1) };
@@ -97,6 +102,9 @@ void psd_on_frame(uint32_t id, const uint8_t *in, uint8_t dlc, uint32_t now)
         s_pos_seg = sg(d, 0, 6);
         s_pos_remain = (uint16_t)(sg(d, 6, 7) * 2);
         s_pos_t = now; s_pos_ok = s_pos_seg >= 2;
+    } else if (id == 0x464 && sg(d, 0, 3) == 0) {                /* PSD_06 mux 0 */
+        s_m0_country = sg(d, 9, 8); s_m0_guid = sg(d, 26, 1);
+        s_m0_qa = sg(d, 38, 1); s_m0_qt = sg(d, 57, 3); s_m0_t = now ? now : 1;
     } else if (id == 0x464 && sg(d, 0, 3) == 2) {                /* PSD_06 mux 2 */
         uint8_t typ = sg(d, 21, 2);
         bool cond = sg(d, 29, 2) || sg(d, 31, 2) || sg(d, 33, 3) || sg(d, 36, 3) ||
@@ -119,6 +127,20 @@ void psd_on_frame(uint32_t id, const uint8_t *in, uint8_t dlc, uint32_t now)
             s_rec[slot] = (rec_t){ true, sid, off, code, (uint8_t)(sg(d, 49, 2) == 1), now };
         }
     }
+    taskEXIT_CRITICAL(&s_mux);
+}
+
+void psd_get_diag(uint32_t now, psd_diag_t *o)
+{
+    memset(o, 0, sizeof *o);
+    o->cat_cur = 7;
+    taskENTER_CRITICAL(&s_mux);
+    o->pos_fresh = s_pos_ok && now - s_pos_t < 3000;
+    if (o->pos_fresh && s_seg[s_pos_seg].ok) { o->cat_cur = s_seg[s_pos_seg].cat; o->urban_cur = s_seg[s_pos_seg].urban; }
+    o->adas_fresh = s_adas_t && now - s_adas_t < 3000; o->adas_q = s_adas_q;
+    o->m0_fresh = s_m0_t && now - s_m0_t < 5000;
+    o->country = s_m0_country; o->guidance = s_m0_guid; o->qual_avail = s_m0_qa; o->qual_tempo = s_m0_qt;
+    o->n04 = s_n04; o->n04_q1 = s_n04_q1; o->n04_cat7 = s_n04_cat7;
     taskEXIT_CRITICAL(&s_mux);
 }
 
