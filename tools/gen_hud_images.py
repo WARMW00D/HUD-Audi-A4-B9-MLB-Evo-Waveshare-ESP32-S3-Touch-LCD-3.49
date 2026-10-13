@@ -285,6 +285,18 @@ def fuel_icon():
     d.line(P([(13.9, 12.6), (13.9, 4.4), (11.4, 1.8)]), fill=255, width=w, joint="curve")      # пистолет
     return down(m, W, H)
 
+def cam_icon():
+    """Значок камеры контроля скорости: корпус с объективом и вспышкой на стойке (свой рисунок)."""
+    W, H = 30, 24
+    m = canvas(W, H); d = ImageDraw.Draw(m)
+    rrect(d, (0.8, 1.6, 29.2, 13.4), 2.0, fill=255)                # корпус
+    d.ellipse([17.6 * S, 3.4 * S, 25.4 * S, 11.6 * S], fill=0)   # объектив — вырез
+    d.ellipse([19.8 * S, 5.6 * S, 23.2 * S, 9.4 * S], fill=255)    # зрачок
+    rrect(d, (3.4, 3.8, 10.0, 6.4), 0.6, fill=0)                    # окно вспышки
+    rrect(d, (13.3, 13.0, 16.7, 23.0), 0.6, fill=255)               # стойка
+    rrect(d, (10.0, 21.8, 20.0, 24.0), 0.8, fill=255)               # основание
+    return down(m, W, H)
+
 def lim_mask():
     """Лимитер: надпись LIM (Montserrat Bold, OFL)."""
     from PIL import ImageFont
@@ -364,6 +376,7 @@ def main():
     items.append(("img_presense_tri", presense_tri()))
     items.append(("img_sign_car", sign_car()))
     items.append(("img_fuel_icon", fuel_icon()))
+    items.append(("img_cam_icon", cam_icon()))
     items.append(("img_presense_txt", text_mask("PreSense", 22)))
 
     with open(os.path.join(OUT, "hud_images.c"), "w") as f:

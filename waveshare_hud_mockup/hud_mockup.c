@@ -202,6 +202,7 @@ static SignItem vze_eval(uint8_t code, bool suppress, uint8_t tl, bool allow_fal
 static bool g_cam_active;                 /* камера сейчас показана: диагностика уступает место */
 static volatile uint8_t g_units, g_tol;   /* определены ниже (tentative definition) */
 #if HUD_CAMS
+static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y, uint32_t col);
 static lv_obj_t *cm_disc, *cm_lim, *cm_dist, *cm_eye;
 
 static void cams_build(lv_obj_t *scr)
@@ -224,10 +225,7 @@ static void cams_build(lv_obj_t *scr)
     lv_obj_set_style_text_color(cm_lim, lv_color_black(), 0);
     lv_obj_center(cm_lim);
 
-    cm_eye = lv_label_create(scr);  lv_label_set_text(cm_eye, LV_SYMBOL_EYE_OPEN);
-    lv_obj_set_style_text_font(cm_eye, LV_FONT_DEFAULT, 0);
-    lv_obj_set_style_text_color(cm_eye, lv_color_hex(C_YELLOW), 0);
-    lv_obj_set_pos(cm_eye, 40, 94);
+    cm_eye = car_img(scr, &img_cam_icon, 38, 90, C_YELLOW);   /* значок камеры */
 
     lv_obj_add_flag(cm_dist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cm_disc, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(cm_eye, LV_OBJ_FLAG_HIDDEN);
@@ -257,7 +255,7 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
     bool over = h.limit && d->speed_kmh > h.limit + g_tol;
     bool ph   = over && (now % 400) < 200;
     set_bg_color(cm_disc, ph ? C_SIGN_WARN : 0xffffff);
-    set_text_color(cm_eye, over ? 0xff3030 : C_YELLOW);
+    lv_obj_set_style_img_recolor(cm_eye, lv_color_hex(over ? 0xff3030 : C_YELLOW), 0);
 
     if (h.idx != beeped) {                              /* новая камера */
         beeped = h.idx;
