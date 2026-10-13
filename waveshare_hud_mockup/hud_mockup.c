@@ -225,7 +225,7 @@ static void cams_build(lv_obj_t *scr)
     lv_obj_set_style_text_color(cm_lim, lv_color_black(), 0);
     lv_obj_center(cm_lim);
 
-    cm_eye = car_img(scr, &img_cam_icon, 38, 90, C_YELLOW);   /* значок камеры */
+    cm_eye = car_img(scr, &img_cam_icon, 38, 88, C_YELLOW);   /* значок камеры */
 
     lv_obj_add_flag(cm_dist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cm_disc, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(cm_eye, LV_OBJ_FLAG_HIDDEN);
