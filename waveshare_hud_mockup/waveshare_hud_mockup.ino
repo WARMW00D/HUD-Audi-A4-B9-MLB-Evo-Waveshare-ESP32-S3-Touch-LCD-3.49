@@ -19,6 +19,7 @@
 #include "hud_sound.h"
 #include "hud_log.h"
 #include "hud_ota.h"
+#include "hud_cams.h"
 #include "hud_config.h"
 
 void lvgl_log_cb(const char *buf)
@@ -52,6 +53,7 @@ void setup()
   hud_sound_start();                /* звук: своя задача, стартовый звук */
   hud_ota_start_button();           /* удержание BOOT -> режим обновления */
 
+  hud_cams_start();                 /* база камер из флеша (FATFS) в PSRAM, фоновая задача */
   hud_source_start();               /* источник кадров: BLE / TWAI / генератор */
 }
 

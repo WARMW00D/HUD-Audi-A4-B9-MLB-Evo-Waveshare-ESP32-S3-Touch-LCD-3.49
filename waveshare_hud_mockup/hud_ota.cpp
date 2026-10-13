@@ -12,6 +12,7 @@
 #include <WebServer.h>
 #include <Update.h>
 #include <Preferences.h>
+#include <FFat.h>
 #include "hud_config.h"
 #include "hud_data.h"
 #include "hud_log.h"
@@ -116,6 +117,20 @@ progress{width:100%;height:20px}#m{margin-top:12px;min-height:24px}small{color:#
 <input type="file" id="f" accept=".bin"><br>
 <button id="b" onclick="up()">Загрузить / Upload</button>
 <progress id="p" value="0" max="100" style="display:none"></progress><div id="m"></div>
+<hr><h1>База камер / camera database</h1>
+<p><small>cams.bin (tools/gen_cams.py)</small></p>
+<input type="file" id="g" accept=".bin"><br>
+<button id="c" onclick="upc()">Загрузить базу / Upload database</button>
+<progress id="q" value="0" max="100" style="display:none"></progress><div id="n"></div>
+<script>
+function upc(){var f=document.getElementById('g').files[0],m=document.getElementById('n'),p=document.getElementById('q');
+if(!f){m.textContent='Выберите cams.bin / choose cams.bin';return}
+var x=new XMLHttpRequest(),d=new FormData();d.append('cams',f,'cams.bin');p.style.display='block';
+x.upload.onprogress=function(e){if(e.lengthComputable)p.value=100*e.loaded/e.total};
+x.onload=function(){m.textContent=x.status==200?'Готово, HUD перезагружается / Done, rebooting':'Ошибка / Error: '+x.responseText};
+x.onerror=function(){m.textContent='Нет связи / Connection lost'};
+document.getElementById('c').disabled=true;x.open('POST','/cams');x.send(d)}
+</script>
 <script>
 function up(){var f=document.getElementById('f').files[0],m=document.getElementById('m'),p=document.getElementById('p');
 if(!f){m.textContent='Выберите .bin / choose a .bin';return}
@@ -160,6 +175,68 @@ static void on_upload()
     }
 }
 
+/* ---------------- база камер -> /cams.bin во флеше (FATFS) ---------------- */
+static bool    s_cam_ok, s_cam_started;
+static File    s_cam_file;
+static size_t  s_cam_len;
+static char    s_cam_err[48];
+
+static void cam_fail(const char *why)
+{
+    strncpy(s_cam_err, why, sizeof s_cam_err - 1);
+    set_state(HUD_OTA_ERROR, -1, why);
+    if (s_cam_file) s_cam_file.close();
+    FFat.remove("/cams.tmp");
+    s_cam_started = false;
+}
+
+static void on_cams_upload()
+{
+    HTTPUpload &u = s_srv->upload();
+    if (u.status == UPLOAD_FILE_START) {
+        s_cam_ok = false; s_cam_started = false; s_cam_len = 0; s_cam_err[0] = 0;
+        set_state(HUD_OTA_UPLOAD, 0, "");
+        hud_log_write("[ota] приём базы камер\n");
+        if (!FFat.begin(true)) { cam_fail("no FATFS partition"); return; }
+        FFat.remove("/cams.tmp");
+        s_cam_file = FFat.open("/cams.tmp", "w");
+        if (!s_cam_file) { cam_fail("cannot create file"); return; }
+        s_cam_started = true;
+    } else if (u.status == UPLOAD_FILE_WRITE && s_cam_started) {
+        if (s_cam_len == 0 && (u.currentSize < 16 || memcmp(u.buf, "CAM1", 4) != 0)) { cam_fail("not a cams.bin"); return; }
+        if (s_cam_file.write(u.buf, u.currentSize) != u.currentSize) { cam_fail("flash write failed (full?)"); return; }
+        s_cam_len += u.currentSize;
+        size_t tot = s_srv->clientContentLength();
+        if (tot > 0) set_state(HUD_OTA_UPLOAD, (int)(((s_cam_len * 100) / tot) > 99 ? 99 : ((s_cam_len * 100) / tot)), NULL);
+        s_t0 = millis();
+    } else if (u.status == UPLOAD_FILE_END && s_cam_started) {
+        s_cam_file.close();
+        File f = FFat.open("/cams.tmp", "r");
+        uint32_t hdr[4] = {0};
+        bool good = f && f.read((uint8_t *)hdr, 16) == 16 && f.size() == 16 + (size_t)hdr[1] * 12;
+        if (f) f.close();
+        if (!good) { cam_fail("size does not match the header"); return; }
+        FFat.remove("/cams.bin");
+        if (!FFat.rename("/cams.tmp", "/cams.bin")) { cam_fail("rename failed"); return; }
+        s_cam_ok = true; s_cam_started = false;
+        set_state(HUD_OTA_DONE, 100, "");
+        hud_log_write("[ota] база камер записана\n");
+    } else if (u.status == UPLOAD_FILE_ABORTED) {
+        if (s_cam_started) cam_fail("upload aborted");
+    }
+}
+
+static void on_cams_done()
+{
+    if (s_cam_ok) {
+        s_srv->send(200, "text/plain", "OK");
+        s_restart_at = millis() + 2500;
+    } else {
+        s_srv->send(500, "text/plain", s_cam_err[0] ? s_cam_err : "failed");
+        set_state(HUD_OTA_WAIT, 0, NULL);
+    }
+}
+
 static void on_done()
 {
     if (s_up_ok) {
@@ -181,6 +258,7 @@ static void ota_task(void *)
         s_srv->send(200, "text/html; charset=utf-8", p);
     });
     s_srv->on("/update", HTTP_POST, on_done, on_upload);
+    s_srv->on("/cams", HTTP_POST, on_cams_done, on_cams_upload);
     s_srv->onNotFound([]() { s_srv->sendHeader("Location", "/"); s_srv->send(302); });   /* captive-подобный редирект */
     s_srv->begin();
     s_t0 = millis();

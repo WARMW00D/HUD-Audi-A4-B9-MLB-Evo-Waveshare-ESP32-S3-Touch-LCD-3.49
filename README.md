@@ -225,6 +225,15 @@ If you use the BLE source with pairing, first copy `waveshare_hud_mockup/secrets
 
 The Wi-Fi password is `HUD_OTA_PASS` from `secrets.h` (default `hud12345` — change it). In update mode CAN, BLE and sound are off, so it is only for the parked car. An interrupted upload does not break anything: the new image becomes active only after it is fully written, the old firmware stays. A wrong file (not a firmware image) is rejected by the updater.
 
+### Camera database (`cams.bin`)
+
+1. Get a Datakam speed-camera base (`speedcam_*.bin`) and convert it: `python3 tools/gen_cams.py speedcam_D6.bin cams.bin` (optional `--bbox lat0 lon0 lat1 lon1` to cut a region; the whole of Russia is ~2.2 MB). The format and the type codes found so far are described in the script header.
+2. Arduino IDE: **Tools → Partition Scheme → "16M Flash (3MB APP/9.9MB FATFS)"** (the same scheme OTA needs) and **PSRAM: OPI**; the database is read into PSRAM at start.
+3. Hold **BOOT** (update mode), open `http://192.168.4.1`, in the "Camera database" block choose `cams.bin` and upload; the HUD reboots. The file lives in the flash FATFS partition as `/cams.bin`.
+4. Check without the car: `gcc -O2 -o cam_replay tools/cam_replay.c waveshare_hud_mockup/cam_alert.c -Iwaveshare_hud_mockup -lm && ./cam_replay cams.bin can_log_0004.txt` replays a sniffer log against the database and prints where the HUD would show cameras.
+
+Mobile cameras / tripods are not in the Datakam base and are not supported (they do not stay in place).
+
 ---
 
 ## Settings in `hud_config.h`
@@ -259,6 +268,7 @@ The Wi-Fi password is `HUD_OTA_PASS` from `secrets.h` (default `hud12345` — ch
 | `HUD_PSD_LIMITS` / `HUD_VZE_SIGNS` | `1` / `1` | signs from PSD / from VZE_01 on first boot (then from the menu) |
 | `HUD_PSD_LEGAL_DELAY_MS` | `1000` | delay before switching from explicit sign to legal limit |
 | `HUD_SIGN_CYCLE_MS` | `1000` | several signs rotate, this many ms each |
+| `HUD_CAMS` (+ `HUD_CAM_*`) | `1` | speed-camera warning from the car's own GNSS (`NavPos_01` 0x486 position, `NavData_01` 0x484 heading, 5 Hz each, **added to the sniffer ACL**). Needs the database `cams.bin` in the flash FATFS partition (see "Camera database"); no file — silently off. Not in the menu. Shows under the sign (in place of `HUD_PSD_DIAG`): distance, the camera's limit sign (flashes when above limit + margin), an eye icon. `HUD_CAM_TYPE_MASK` = which camera types (bit 0 = code 510 stationary cameras, bit 8 = 760 DPS posts), `HUD_CAM_AHEAD_S/MIN_M/MAX_M` = warning window, `HUD_CAM_CROSS_M` / `HUD_CAM_DIR_DEG` = tolerance from the driving line / camera direction, `HUD_CAM_MIN_SPEED_KMH`, `HUD_CAM_MAX_HDOP_X10`, `HUD_CAM_BEEP` (one beep when a camera appears and speed is above its limit), `HUD_CAM_OVERSPEED_M` (closer than this the camera limit also drives the red speed outline) |
 | `HUD_PSD_DIAG` | `0` | debug only, no menu entry: indicators under the sign — map-match dot (green/red, grey = PSD silent), 3 speed-limit quality bars, country code, built-up icon, guidance icon, sign source (V = VZE; PA/PO/PB = PSD, sign from VZA/VZO/both). The dot is green when PSD_05 is not Off-Road, the segment category is not 7 (Init) and its ADAS quality is 1. Logs PSD_04/05 frame counters and quality fields every 10 s |
 | `HUD_OVERSPEED_TOL_KMH` / `HUD_OVERSPEED_START` | `20` / `75` | overspeed tolerance on first boot, km/h (0…20, then from the menu; km/h also in mile mode), and the % of it where the outline starts to appear |
 | `HUD_TOUCH_ENABLE` | `1` | tap the screen for the settings menu; `0` = touch not polled |
@@ -661,6 +671,8 @@ several times (noting the times), then look for bits that change at those moment
     ├── src/esp_codec_dev/         Espressif codec driver (from the Waveshare 08_Audio_Test example)
     ├── vze_table.h                sign code table + ACC_Tempolimit
     ├── psd_speedlimit.c/.h        speed limits from PSD (MIB route prediction)
+    ├── cam_alert.c/.h             speed cameras ahead from GNSS position, heading and speed (pure C)
+    ├── hud_cams.cpp/.h            loads /cams.bin from the FATFS partition into PSRAM
     ├── hud_images.c/.h            icons and car view (generated)
     ├── hud_nav_images.c/.h        navigation arrows (generated)
     ├── hud_font_*.c               Montserrat / Roboto Condensed fonts (generated)

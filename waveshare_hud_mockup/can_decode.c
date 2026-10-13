@@ -39,11 +39,12 @@
 #define TO_BC      60000
 #define TO_RLS     1500
 #define TO_SWA     1000
+#define TO_GPS     1500    /* NavPos_01 / NavData_01: 5 Гц */
 #define TO_WHEEL   3000    /* BCM1_04: раз в 1 с в покое, 50-60 мс при вращении */   /* BAP_BC: 0x18 раз в ~4 с при изменении, остальное — heartbeat ~25 с */
 
-enum { S_SPEED, S_ACC, S_GEAR, S_BLINK, S_SIGN, S_MAN, S_MDIST, S_DEST, S_TTE, S_LKA, S_DOORS, S_HOOD, S_GNUM, S_JAM, S_LIM, S_AWV, S_DIM, S_ACCEL, S_SPDACC, S_BRAKE, S_FUEL, S_CLOCK, S_BC, S_BCFUEL, S_RLS, S_WHEEL, S_SWA, S_COUNT };
+enum { S_SPEED, S_ACC, S_GEAR, S_BLINK, S_SIGN, S_MAN, S_MDIST, S_DEST, S_TTE, S_LKA, S_DOORS, S_HOOD, S_GNUM, S_JAM, S_LIM, S_AWV, S_DIM, S_ACCEL, S_SPDACC, S_BRAKE, S_FUEL, S_CLOCK, S_BC, S_BCFUEL, S_RLS, S_WHEEL, S_SWA, S_GPS, S_HDG, S_COUNT };
 static const uint32_t s_timeout[S_COUNT] = {
-    TO_SPEED, TO_ACC, TO_GEAR, TO_BLINK, TO_SIGN, TO_NAV, TO_NAV, TO_NAV, TO_NAV, TO_LKA, TO_DOORS, TO_HOOD, TO_GNUM, TO_JAM, TO_LIM, TO_AWV, TO_DIM, TO_ACCEL, TO_SPDACC, TO_BRAKE, TO_FUEL, TO_CLOCK, TO_BC, TO_BC, TO_RLS, TO_WHEEL, TO_SWA
+    TO_SPEED, TO_ACC, TO_GEAR, TO_BLINK, TO_SIGN, TO_NAV, TO_NAV, TO_NAV, TO_NAV, TO_LKA, TO_DOORS, TO_HOOD, TO_GNUM, TO_JAM, TO_LIM, TO_AWV, TO_DIM, TO_ACCEL, TO_SPDACC, TO_BRAKE, TO_FUEL, TO_CLOCK, TO_BC, TO_BC, TO_RLS, TO_WHEEL, TO_SWA, TO_GPS, TO_GPS
 };
 
 static HudData      s_data;
@@ -638,6 +639,21 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
         s_data.rls_boost = sig(d, 35, 4);
         touch(S_RLS);
         break;
+    case 0x486: { /* NavPos_01 (проверено по логу 09.10): 0|27 широта, 27|28 долгота ×1e-6, 55 юг, 56 запад, 57|5 спутники, 62|2 фикс */
+        int32_t la = (int32_t)sig(d, 0, 27), lo = (int32_t)sig(d, 27, 28);
+        s_data.gps_lat_e6 = sig(d, 55, 1) ? -la : la;
+        s_data.gps_lon_e6 = sig(d, 56, 1) ? -lo : lo;
+        s_data.gps_sat = sig(d, 57, 5);
+        s_data.gps_fix = sig(d, 62, 2);
+        touch(S_GPS);
+        break; }
+    case 0x484: { /* NavData_01: 20|10 HDOP ×0.025, 50|12 курс ×0.1 (409.4 — нет) */
+        uint32_t h = sig(d, 50, 12);
+        s_data.gps_hdg_x10 = h < 3600 ? (uint16_t)h : 0xFFFF;
+        uint32_t hd = sig(d, 20, 10) * 25 / 100;                       /* x10 */
+        s_data.gps_hdop_x10 = hd > 255 ? 255 : (uint8_t)hd;
+        touch(S_HDG);
+        break; }
     case 0x30F: /* SWA_01 — Side Assist (opendbc MLB/MQB; ⚠️ на I-CAN проверить) */
         s_data.swa_info = (uint8_t)(sig(d, 26, 1) | (sig(d, 42, 1) << 1));   /* Infostufe_SWA_li / _re */
         s_data.swa_warn = (uint8_t)(sig(d, 27, 1) | (sig(d, 43, 1) << 1));   /* Warnung_SWA_li / _re   */

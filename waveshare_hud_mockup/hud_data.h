@@ -42,6 +42,8 @@ extern "C" {
 #define V_RLS    (1u << 24)  /* rls_* (RLS_01 0x5A0)              */
 #define V_WHEEL  (1u << 25)  /* wheel_pct (BCM1_04 0x64F)         */
 #define V_SWA    (1u << 26)  /* swa_* (SWA_01 0x30F)              */
+#define V_GPS    (1u << 27)  /* gps_lat/lon/fix/sat (NavPos_01 0x486, 5 Гц)   */
+#define V_HDG    (1u << 28)  /* gps_hdg_x10, gps_hdop_x10 (NavData_01 0x484, 5 Гц) */
 
 #define BLINK_L_TAKT  0x01
 #define BLINK_R_TAKT  0x02
@@ -93,6 +95,12 @@ typedef struct {
     uint8_t  rls_boost;      /* RLS_01.RLS_Vorfeldhelligkeit_Boost 0..15 (0 — очень яркое солнце) */
     uint8_t  rls_rain;       /* RLS_01.RS_Regenmenge, x10 %              */
     uint8_t  swa_info;       /* SWA_01: Infostufe — машина в мёртвой зоне: бит0 слева, бит1 справа */
+    int32_t  gps_lat_e6;     /* NavPos_01.NP_LatDegree, градусы x1e6, со знаком (юг < 0) */
+    int32_t  gps_lon_e6;     /* NP_LongDegree (запад < 0)                */
+    uint8_t  gps_fix;        /* NP_Fix: 3 — хороший фикс                 */
+    uint8_t  gps_sat;        /* NP_Sat                                   */
+    uint16_t gps_hdg_x10;    /* NavData_01.ND_Heading, ° x10; 0xFFFF — курса нет (стоим) */
+    uint8_t  gps_hdop_x10;   /* ND_HDOP x10 (0.025 шаг -> округлено)     */
     uint8_t  swa_warn;       /* SWA_01: Warnung — попытка перестроения при машине сбоку: бит0/бит1 */
     uint8_t  wheel_pct;      /* BCM1_04.BCM1_Stellgroesse_Kl_58s — колёсико подсветки 1..100 */
     int16_t  accel_esp_x100; /* ESP_02.ESP_Laengsbeschl, м/с² x100 (+ разгон) */

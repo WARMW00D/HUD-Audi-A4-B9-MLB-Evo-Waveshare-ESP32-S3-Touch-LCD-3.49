@@ -36,6 +36,8 @@
 #include "hud_sounds.h"
 #include "psd_speedlimit.h"
 #include "hud_log.h"
+#include "cam_alert.h"
+#include "hud_cams.h"
 #include "src/lcd_bl_bsp/lcd_bl_pwm_bsp.h"
 
 /* Шрифты: Montserrat Bold (SIL OFL 1.1) с табличными цифрами — см. tools/fonts/ */
@@ -196,6 +198,81 @@ static SignItem vze_eval(uint8_t code, bool suppress, uint8_t tl, bool allow_fal
     return it;
 }
 
+/* ---------- камеры фиксации скорости (HUD_CAMS), на месте диагностики под знаком ---------- */
+static bool g_cam_active;                 /* камера сейчас показана: диагностика уступает место */
+static volatile uint8_t g_units, g_tol;   /* определены ниже (tentative definition) */
+#if HUD_CAMS
+static lv_obj_t *cm_disc, *cm_lim, *cm_dist, *cm_eye;
+
+static void cams_build(lv_obj_t *scr)
+{
+    cm_dist = lv_label_create(scr);  lv_label_set_text(cm_dist, "");
+    lv_obj_set_style_text_font(cm_dist, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_text_color(cm_dist, lv_color_hex(C_YELLOW), 0);
+    lv_obj_set_pos(cm_dist, 3, 69);
+
+    cm_disc = lv_obj_create(scr);                       /* знак ограничения камеры */
+    lv_obj_set_size(cm_disc, 32, 32); lv_obj_set_pos(cm_disc, 2, 86);
+    lv_obj_set_style_radius(cm_disc, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(cm_disc, lv_color_white(), 0);
+    lv_obj_set_style_border_color(cm_disc, lv_color_hex(C_SIGN_RED), 0);
+    lv_obj_set_style_border_width(cm_disc, 3, 0);
+    lv_obj_set_style_pad_all(cm_disc, 0, 0);
+    lv_obj_clear_flag(cm_disc, LV_OBJ_FLAG_SCROLLABLE);
+    cm_lim = lv_label_create(cm_disc);  lv_label_set_text(cm_lim, "");
+    lv_obj_set_style_text_font(cm_lim, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_text_color(cm_lim, lv_color_black(), 0);
+    lv_obj_center(cm_lim);
+
+    cm_eye = lv_label_create(scr);  lv_label_set_text(cm_eye, LV_SYMBOL_EYE_OPEN);
+    lv_obj_set_style_text_font(cm_eye, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_text_color(cm_eye, lv_color_hex(C_YELLOW), 0);
+    lv_obj_set_pos(cm_eye, 40, 94);
+
+    lv_obj_add_flag(cm_dist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cm_disc, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(cm_eye, LV_OBJ_FLAG_HIDDEN);
+}
+
+/* true — камера впереди показана. *lim_for_speed уменьшается до лимита камеры вблизи неё. */
+static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
+{
+    static uint32_t beeped = 0xFFFFFFFFu;
+    cam_hit_t h; bool hit = false;
+    if (hud_cams_ready() && (d->valid & (V_GPS | V_HDG | V_SPEED)) == (V_GPS | V_HDG | V_SPEED) &&
+        d->gps_fix == 3 && d->gps_sat >= 4 && d->gps_hdop_x10 <= HUD_CAM_MAX_HDOP_X10 &&
+        d->gps_hdg_x10 != 0xFFFF && d->speed_kmh >= HUD_CAM_MIN_SPEED_KMH)
+        hit = cam_query(d->gps_lat_e6 / 1e6, d->gps_lon_e6 / 1e6, d->gps_hdg_x10 / 10.0f, (float)d->speed_kmh, &h);
+
+    g_cam_active = hit;
+    vis(cm_disc, hit); vis(cm_dist, hit); vis(cm_eye, hit);
+    if (!hit) return false;
+
+    char b[16];
+    if (g_units == HUD_UNITS_MI) snprintf(b, sizeof b, "%d ft", (int)(h.dist_m * 3.281f / 50) * 50);
+    else                         snprintf(b, sizeof b, "%d m",  (int)(h.dist_m / 10) * 10);
+    set_text(cm_dist, b);
+    if (h.limit) snprintf(b, sizeof b, "%u", h.limit); else snprintf(b, sizeof b, "?");
+    set_text(cm_lim, b); lv_obj_center(cm_lim);
+
+    bool over = h.limit && d->speed_kmh > h.limit + g_tol;
+    bool ph   = over && (now % 400) < 200;
+    set_bg_color(cm_disc, ph ? C_SIGN_WARN : 0xffffff);
+    set_text_color(cm_eye, over ? 0xff3030 : C_YELLOW);
+
+    if (h.idx != beeped) {                              /* новая камера */
+        beeped = h.idx;
+        arduino_printf("[cam] #%lu лимит %u с %.0f м, v=%u, курс %u/кам %d\n", (unsigned long)h.idx, h.limit,
+                       h.dist_m, d->speed_kmh, d->gps_hdg_x10 / 10, (int)h.dir_deg);
+#if HUD_CAM_BEEP
+        if (h.limit && d->speed_kmh > h.limit) hud_sound_play(hud_snd_swa_beep, hud_snd_swa_beep_len);
+#endif
+    }
+    if (h.limit && h.dist_m <= HUD_CAM_OVERSPEED_M && (*lim_for_speed == 0 || h.limit < *lim_for_speed))
+        *lim_for_speed = h.limit;
+    return true;
+}
+#endif
+
 #if HUD_PSD_DIAG
 /* ---------- диагностика привязки к карте (HUD_PSD_DIAG), под знаком ---------- */
 #define DG_OFF 0x444444
@@ -234,6 +311,11 @@ static void diag_update(uint32_t now, uint8_t src)
 {
     psd_diag_t g; psd_get_diag(now, &g);
     char b[96];
+    {   /* камера впереди — место занято ею */
+        bool show = !g_cam_active;
+        vis(dg_dot, show); vis(dg_cc, show); vis(dg_src, show); vis(dg_home, show); vis(dg_gps, show);
+        for (int i = 0; i < 3; i++) vis(dg_bar[i], show);
+    }
 
     /* точка: серая — PSD_05 молчит; зелёная — не Off-Road, категория сегмента != 7 (Init)
        и ADAS-качество сегмента 1 */
@@ -743,6 +825,9 @@ static void hud_update_cb(lv_timer_t *t)
         }
     }
     vis(sign_obj, smode != SIGN_HIDE);
+#if HUD_CAMS
+    cams_update(now, &d, &lim_kmh_for_speed);
+#endif
 #if HUD_PSD_DIAG
     diag_update(now, diag_src);
 #endif
@@ -1567,6 +1652,9 @@ void build_hud_mockup(void)
     lv_obj_add_flag(sign_obj, LV_OBJ_FLAG_HIDDEN);
 #if HUD_PSD_DIAG
     diag_build(scr);
+#endif
+#if HUD_CAMS
+    cams_build(scr);
 #endif
 
     /* ACC / LKA */
