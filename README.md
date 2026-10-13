@@ -103,6 +103,14 @@ These are not photos or mock-ups: the HUD screen code (`hud_mockup.c`) is built 
 
 </details>
 
+**Settings menu** (double tap while stopped) — the main screen and the "More >" page, also rendered from the real code:
+
+![Settings menu, main screen](docs/screens/menu_main.png)
+*Main screen: sound, margin, road signs, speed limit on the road, accel, cameras, camera alert, fuel*
+
+![Settings menu, More page](docs/screens/menu_more.png)
+*"More >": language, units, volume, tank, light sensor calibration*
+
 ---
 
 ## Architecture

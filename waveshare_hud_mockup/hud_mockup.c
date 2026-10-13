@@ -1151,7 +1151,6 @@ static void menu_refresh(void)
     lv_label_set_text(menu_btn_lbl[B_FUEL], buf);
     lv_label_set_text(menu_btn_lbl[B_MORE], en ? "More >" : "Ещё >");
     menu_sel(B_SND, false);  menu_sel(B_TOL, false);  menu_sel(B_FUEL, false);  menu_sel(B_MORE, false);
-    lv_obj_set_style_text_color(menu_btn_lbl[B_MORE], lv_color_white(), 0);
     menu_sw(B_VZE, g_vze);   menu_sw(B_PSD, g_psd);   menu_sw(B_ACCEL, g_accel);
     menu_sw(B_CAM, g_cams_on);  menu_sw(B_CBEEP, g_cam_beep);
 
@@ -1172,7 +1171,11 @@ static void menu_refresh(void)
     menu_sel(B_VOL_L,   !g_gal);     menu_sel(B_VOL_G,   g_gal);
     menu_sel(B_TANK, false);         menu_sel(B_BACK, false);
     menu_sel(B_LDR, hud_light_enabled());
-    lv_obj_set_style_text_color(menu_btn_lbl[B_BACK], lv_color_white(), 0);
+    {   /* кнопки-действия и кнопки со значением: текст всегда белый (серым показывается только неактивный вариант) */
+        static const int act[] = { B_SND, B_TOL, B_FUEL, B_MORE, B_TANK, B_LDR, B_BACK };
+        for (unsigned i = 0; i < sizeof act / sizeof act[0]; i++)
+            lv_obj_set_style_text_color(menu_btn_lbl[act[i]], lv_color_white(), 0);
+    }
 }
 
 /* ---- панель ползунка ---- */
@@ -1571,9 +1574,9 @@ static void build_menu(lv_obj_t *scr)
             menu_title[k] = lv_label_create(menu_pg[1]);
             lv_obj_set_style_text_font(menu_title[k], &hud_font_menu, 0);
             lv_obj_set_style_text_color(menu_title[k], lv_color_hex(C_MENU_DIM), 0);
-            lv_obj_set_width(menu_title[k], cw[k]);
+            lv_obj_set_width(menu_title[k], cw[k] + 24);               /* шире колонки: «Единицы» не помещается в 98 px */
             lv_obj_set_style_text_align(menu_title[k], LV_TEXT_ALIGN_CENTER, 0);
-            lv_obj_set_pos(menu_title[k], cx[k], 7);
+            lv_obj_set_pos(menu_title[k], cx[k] - 12, 7);
         }
         MKB(B_LANG_RU, 1, cx[0], ytop, cw[0], hhalf);  MKB(B_LANG_EN, 1, cx[0], ytop + hhalf + 6, cw[0], hhalf);
         MKB(B_UNIT_KM, 1, cx[1], ytop, cw[1], hhalf);  MKB(B_UNIT_MI, 1, cx[1], ytop + hhalf + 6, cw[1], hhalf);
