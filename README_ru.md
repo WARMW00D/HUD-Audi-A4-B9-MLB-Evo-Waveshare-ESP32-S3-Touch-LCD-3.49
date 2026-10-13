@@ -62,6 +62,47 @@
 Любое поле, по которому давно не было данных, **скрывается**, а не показывает
 устаревшее значение (таймауты — в разделе [Источники данных](#источники-данных-can)).
 
+### Скриншоты
+
+Это не фото и не макеты: код экрана HUD (`hud_mockup.c`) собран под ПК вместе с LVGL, и в него подаются кадры из реальных логов поездок (тот же декодер и та же база камер, что в прошивке). 1280×344 — дисплей 640×172 в масштабе 2×.
+
+![ACC и Lane Assist активны, камера через 40 м, стрелка навигации](docs/screens/hud_01_acc_lka_camera_nav.png)
+*ACC и Lane Assist активны, камера через 40 м, стрелка навигации*
+
+![Превышение лимита камеры: значок камеры красный, её знак мигает, цифры скорости с красной обводкой](docs/screens/hud_02_overspeed_camera_alert.png)
+*Превышение лимита камеры: значок камеры красный, её знак мигает, цифры скорости с красной обводкой*
+
+![Стрелка кольцевой развязки, камера через 130 м](docs/screens/hud_03_roundabout_camera.png)
+*Стрелка кольцевой развязки, камера через 130 м*
+
+<details><summary>Ещё скриншоты</summary>
+
+![Трасса: ACC с машиной впереди, камера у знака, заданная скорость](docs/screens/hud_04_acc_camera_straight.png)
+*Трасса: ACC с машиной впереди, камера у знака, заданная скорость*
+
+![ACC + Lane Assist, камера через 20 м](docs/screens/hud_05_acc_lka_camera_highway.png)
+*ACC + Lane Assist, камера через 20 м*
+
+![Правый поворот через 1,4 км, камера через 10 м](docs/screens/hud_06_right_turn_camera_close.png)
+*Правый поворот через 1,4 км, камера через 10 м*
+
+![Левый поворот, камера через 210 м](docs/screens/hud_07_left_turn_camera_ahead.png)
+*Левый поворот, камера через 210 м*
+
+![Линии Lane Assist (жёлтая — включён, но не держит), навигация](docs/screens/hud_08_lka_lines_nav.png)
+*Линии Lane Assist (жёлтая — включён, но не держит), навигация*
+
+![Предупреждение Pre Sense](docs/screens/hud_09_presense_warning.png)
+*Предупреждение Pre Sense*
+
+![Машина впереди на значке ACC, камера через 100 м](docs/screens/hud_10_camera_acc_vehicle_ahead.png)
+*Машина впереди на значке ACC, камера через 100 м*
+
+![Английский и мили: mph, mi, ft](docs/screens/hud_11_english_mph_bonus.png)
+*Английский и мили: mph, mi, ft*
+
+</details>
+
 ---
 
 ## Архитектура
@@ -639,6 +680,7 @@ python tools/can_bitdiff.py can_log_0001.txt.lzma 0x394 --from 30 --to 60
 ├── .gitignore                 secrets.h не публикуется
 ├── case/                      корпус для 3D-печати: hud_front / hud_rear (.step, .stl), превью
 ├── schematic/                 схема подключения (DC-DC, CAN Pal): HUD_wiring_CAN_DCDC_en.svg / _ru.svg
+├── docs/                      cams_format.md (формат базы камер), screens/ (скриншоты HUD)
 ├── tools/
 │   ├── gen_hud_images.py      генератор значков и машинки
 │   ├── gen_nav_images.py      генератор стрелок

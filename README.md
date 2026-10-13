@@ -62,6 +62,47 @@ Data is read passively from the I-CAN (infotainment) bus; nothing is ever transm
 Any field without fresh data is **hidden** instead of showing a stale value
 (timeouts are listed in [Data sources](#data-sources-can)).
 
+### Screenshots
+
+These are not photos or mock-ups: the HUD screen code (`hud_mockup.c`) is built for a PC together with LVGL and fed with frames from real drive logs (the same decoder and the same camera database as in the firmware). 1280×344 = the 640×172 display at 2×.
+
+![ACC and Lane Assist active, speed camera 40 m ahead, navigation arrow](docs/screens/hud_01_acc_lka_camera_nav.png)
+*ACC and Lane Assist active, speed camera 40 m ahead, navigation arrow*
+
+![Over the camera limit: camera icon turns red, its limit sign flashes, speed digits get the red outline](docs/screens/hud_02_overspeed_camera_alert.png)
+*Over the camera limit: camera icon turns red, its limit sign flashes, speed digits get the red outline*
+
+![Roundabout arrow, camera 130 m ahead](docs/screens/hud_03_roundabout_camera.png)
+*Roundabout arrow, camera 130 m ahead*
+
+<details><summary>More screenshots</summary>
+
+![Highway: ACC with a car ahead, camera at the sign, set speed](docs/screens/hud_04_acc_camera_straight.png)
+*Highway: ACC with a car ahead, camera at the sign, set speed*
+
+![ACC + Lane Assist, camera 20 m ahead](docs/screens/hud_05_acc_lka_camera_highway.png)
+*ACC + Lane Assist, camera 20 m ahead*
+
+![Right turn at 1.4 km, camera 10 m ahead](docs/screens/hud_06_right_turn_camera_close.png)
+*Right turn at 1.4 km, camera 10 m ahead*
+
+![Left turn, camera 210 m ahead](docs/screens/hud_07_left_turn_camera_ahead.png)
+*Left turn, camera 210 m ahead*
+
+![Lane Assist lines (yellow = on but not holding), navigation](docs/screens/hud_08_lka_lines_nav.png)
+*Lane Assist lines (yellow = on but not holding), navigation*
+
+![Pre Sense warning](docs/screens/hud_09_presense_warning.png)
+*Pre Sense warning*
+
+![Car ahead on the ACC icon, camera 100 m ahead](docs/screens/hud_10_camera_acc_vehicle_ahead.png)
+*Car ahead on the ACC icon, camera 100 m ahead*
+
+![English and miles: mph, mi, ft](docs/screens/hud_11_english_mph_bonus.png)
+*English and miles: mph, mi, ft*
+
+</details>
+
 ---
 
 ## Architecture
@@ -642,6 +683,7 @@ several times (noting the times), then look for bits that change at those moment
 ├── .gitignore                 secrets.h is never published
 ├── case/                      3D-printable case: hud_front / hud_rear (.step, .stl), previews
 ├── schematic/                 wiring diagram (DC-DC, CAN Pal): HUD_wiring_CAN_DCDC_en.svg / _ru.svg
+├── docs/                      cams_format.md (camera database format), screens/ (HUD screenshots)
 ├── tools/
 │   ├── gen_hud_images.py      icon and car view generator
 │   ├── gen_nav_images.py      arrow generator
