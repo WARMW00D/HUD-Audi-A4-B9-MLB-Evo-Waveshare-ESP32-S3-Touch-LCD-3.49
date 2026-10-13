@@ -9,6 +9,8 @@ Data is read passively from the I-CAN (infotainment) bus; nothing is ever transm
 > **Data source** — the sniffer / BLE gateway: [esp32-CAN-sniffer-logger-screener](https://github.com/WARMW00D/esp32-CAN-sniffer-logger-screener).
 > The same repository describes a simplified CAN→BLE gateway for the HUD (no SD card, powered from ACC).
 
+> **Disclaimer.** This is an experimental hobby project provided "as is", without warranty of any kind. Building, installing and using it is entirely at your own risk and responsibility; the authors accept no liability. It is not a safety system and must not be relied on while driving. Camera warnings may be restricted or prohibited in your country. See [Disclaimer and responsibility](#disclaimer-and-responsibility).
+
 ---
 
 ## Contents
@@ -760,6 +762,24 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 ---
 
 ## Safety and legal notes
+
+### Disclaimer and responsibility
+
+This section supplements the MIT licence in [LICENSE](LICENSE) and does not replace it. It is not legal advice.
+
+1. **"As is", no warranty.** The hardware designs, firmware, tools, documentation and other materials in this repository (the "Project") are provided "as is" and "as available", without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, accuracy, completeness, non-infringement and uninterrupted or error-free operation.
+2. **Limitation of liability.** To the maximum extent permitted by applicable law, the authors and contributors are not liable for any direct, indirect, incidental, special, consequential or other damages or losses arising from the Project or its use, including but not limited to: damage to or failure of a vehicle, its electrical system, control units, bus or other equipment; loss of the manufacturer's or seller's warranty or of type approval / roadworthiness; fire, personal injury or death; traffic accidents; fines, penalties, confiscation of equipment or other legal consequences; loss of data. Nothing in this notice excludes or limits liability that cannot be excluded or limited under applicable law.
+3. **Responsibility of the user.** Everyone who builds, installs, modifies, connects to a vehicle or uses the Project or any part of it does so **solely at their own risk and bears all responsibility** for the result, including correct wiring and power supply, safe installation and compliance with the law. The authors have not verified the Project on every vehicle, model year, equipment variant or software version, and the descriptions of signals and wiring may be incomplete or wrong. If you are not sure what you are doing, do not connect anything to the vehicle.
+4. **Not a safety system.** The HUD is an auxiliary display. Displayed values (speed, speed limits and signs, camera warnings, ACC / Lane Assist / Pre Sense states, navigation, fuel and others) may be wrong, delayed, missing or misleading. The driver remains fully responsible for driving, for observing traffic signs and rules, and must rely on the vehicle's own instruments and on the road situation, not on this device. Install and set it up so that it does not distract and does not obstruct the view or airbag zones.
+5. **Speed-camera warnings and local law.** In some countries and regions the use, possession or installation of devices, software or data that warn about speed cameras or police checkpoints (or that show their positions) is restricted or prohibited. The camera feature (`HUD_CAMS`) is optional and can be disabled at compile time and in the menu. **You alone are responsible for checking and complying with the laws of every country you drive in.** The camera database is **not** part of this repository: the files you load come from third parties, their terms of use apply, and the data may be incomplete, outdated or wrong. The same applies to other regulations (vehicle modification and approval rules, rules on devices in the driver's field of view, privacy, radio / electronic equipment rules).
+6. **Vehicle data and third parties.** The Project only listens to the vehicle bus; the signal descriptions come from public sources and from the author's own observations for interoperability and personal use. Check that you are entitled to access and modify your vehicle and that doing so does not breach your agreements (warranty, leasing, insurance) or the law. Do not use the Project on vehicles you do not own or have no permission to modify.
+7. **Trademarks.** Audi, Volkswagen, VAG, MIB, MLB and other names and marks belong to their owners and are used only to describe compatibility. The Project is independent and is not affiliated with, endorsed or approved by them.
+8. **Compensation.** To the extent permitted by applicable law, a person who builds or uses the Project and passes it on to others is responsible for it towards those others, and agrees not to make claims against the authors and contributors for damage arising from the Project and, if such claims are made by third parties because of that person's use, to compensate the authors and contributors for the resulting losses.
+9. **Third-party materials** (fonts, icons, libraries, data) are covered by their own licences and terms, see below.
+
+If you do not agree with these terms, do not build or use the Project.
+
+### Notes
 
 - The sniffer and the HUD's own TWAI controller run in **LISTEN_ONLY** mode and never transmit on the bus (the CAN Pal TX is not connected, SLNT is tied to 3V3). Do not switch them
   to normal mode while connected to a car.
