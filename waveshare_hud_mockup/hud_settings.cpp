@@ -19,6 +19,7 @@ void hud_settings_load(void)
         hud_set_lang(HUD_LANG); hud_set_units(HUD_UNITS);
         hud_set_psd(HUD_PSD_LIMITS); hud_set_vze(HUD_VZE_SIGNS); hud_set_accel_bar(HUD_ACCEL_BAR);
         hud_set_fuel_avg(HUD_FUEL_AVG); hud_set_gallons(HUD_VOLUME_GAL);
+        hud_set_tank(HUD_TANK_L); hud_set_cams(HUD_CAMS_ON); hud_set_cam_beep(HUD_CAM_BEEP);
         hud_sound_set_volume(HUD_SOUND_VOLUME); hud_set_overspeed_tol(HUD_OVERSPEED_TOL_KMH);
         hud_light_set_enabled(HUD_LDR_ON);
         return;
@@ -28,7 +29,10 @@ void hud_settings_load(void)
     hud_set_psd(p.getBool("psd", HUD_PSD_LIMITS));
     hud_set_vze(p.getBool("vze", HUD_VZE_SIGNS));
     hud_set_accel_bar(p.getBool("accel", HUD_ACCEL_BAR));
-    hud_set_fuel_avg(p.getBool("favg", HUD_FUEL_AVG));
+    hud_set_fuel_mode(p.getUChar("fmode", p.getBool("favg", HUD_FUEL_AVG) ? 1 : 0));   /* старое поле favg — как запасное */
+    hud_set_tank(p.getUChar("tank", HUD_TANK_L));
+    hud_set_cams(p.getBool("cams", HUD_CAMS_ON));
+    hud_set_cam_beep(p.getBool("cbeep", HUD_CAM_BEEP));
     hud_set_gallons(p.getBool("gal", HUD_VOLUME_GAL));
     hud_sound_set_volume(p.getUChar("vol", HUD_SOUND_VOLUME));
     hud_set_overspeed_tol(p.getUChar("tol", HUD_OVERSPEED_TOL_KMH));
@@ -39,7 +43,7 @@ void hud_settings_load(void)
                    hud_get_lang() == HUD_LANG_EN ? "EN" : "RU",
                    hud_get_units() == HUD_UNITS_MI ? "мили" : "км",
                    hud_get_vze() ? "вкл" : "выкл", hud_get_psd() ? "вкл" : "выкл",
-                   hud_get_accel_bar() ? "вкл" : "выкл", hud_get_fuel_avg() ? "средний" : "мгновенный",
+                   hud_get_accel_bar() ? "вкл" : "выкл", hud_get_fuel_mode() == 1 ? "средний" : hud_get_fuel_mode() == 0 ? "мгновенный" : "выкл",
                    (unsigned)hud_sound_get_volume(), (unsigned)hud_get_overspeed_tol(), hud_light_enabled() ? "вкл" : "выкл");
 }
 
@@ -52,7 +56,10 @@ void hud_settings_save(void)
     p.putBool("psd", hud_get_psd());
     p.putBool("vze", hud_get_vze());
     p.putBool("accel", hud_get_accel_bar());
-    p.putBool("favg", hud_get_fuel_avg());
+    p.putUChar("fmode", hud_get_fuel_mode());
+    p.putUChar("tank", hud_get_tank());
+    p.putBool("cams", hud_get_cams());
+    p.putBool("cbeep", hud_get_cam_beep());
     p.putBool("gal", hud_get_gallons());
     p.putUChar("vol", hud_sound_get_volume());
     p.putUChar("tol", hud_get_overspeed_tol());

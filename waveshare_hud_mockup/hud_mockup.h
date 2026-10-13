@@ -24,6 +24,14 @@ void    hud_set_gallons(bool on);      /* «сколько заправить» 
 bool    hud_get_gallons(void);
 void    hud_set_fuel_avg(bool on);     /* полоска расхода: true — средний, false — мгновенный */
 bool    hud_get_fuel_avg(void);
+void    hud_set_fuel_mode(uint8_t m);  /* полоска расхода: 0 мгновенный, 1 средний, 2 выкл */
+uint8_t hud_get_fuel_mode(void);
+void    hud_set_tank(uint8_t l);       /* объём бака, л, 30..90 */
+uint8_t hud_get_tank(void);
+void    hud_set_cams(bool on);         /* камеры: показ (HUD_CAMS) */
+bool    hud_get_cams(void);
+void    hud_set_cam_beep(bool on);     /* камеры: сигнал */
+bool    hud_get_cam_beep(void);
 void    hud_set_accel_bar(bool on);    /* бар ускорения вкл/выкл                        */
 bool    hud_get_accel_bar(void);
 

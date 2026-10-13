@@ -201,6 +201,7 @@ static SignItem vze_eval(uint8_t code, bool suppress, uint8_t tl, bool allow_fal
 /* ---------- камеры фиксации скорости (HUD_CAMS), на месте диагностики под знаком ---------- */
 static bool g_cam_active;                 /* камера сейчас показана: диагностика уступает место */
 static volatile uint8_t g_units, g_tol;   /* определены ниже (tentative definition) */
+static volatile bool g_cams_on, g_cam_beep;
 #if HUD_CAMS
 static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y, uint32_t col);
 static lv_obj_t *cm_disc, *cm_lim, *cm_dist, *cm_eye;
@@ -236,7 +237,7 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
 {
     static uint32_t beeped = 0xFFFFFFFFu;
     cam_hit_t h; bool hit = false;
-    if (hud_cams_ready() && (d->valid & (V_GPS | V_HDG | V_SPEED)) == (V_GPS | V_HDG | V_SPEED) &&
+    if (g_cams_on && hud_cams_ready() && (d->valid & (V_GPS | V_HDG | V_SPEED)) == (V_GPS | V_HDG | V_SPEED) &&
         d->gps_fix == 3 && d->gps_sat >= 4 && d->gps_hdop_x10 <= HUD_CAM_MAX_HDOP_X10 &&
         d->gps_hdg_x10 != 0xFFFF && d->speed_kmh >= HUD_CAM_MIN_SPEED_KMH)
         hit = cam_query(d->gps_lat_e6 / 1e6, d->gps_lon_e6 / 1e6, d->gps_hdg_x10 / 10.0f, (float)d->speed_kmh, &h);
@@ -261,9 +262,7 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
         beeped = h.idx;
         arduino_printf("[cam] #%lu лимит %u с %.0f м, v=%u, курс %u/кам %d\n", (unsigned long)h.idx, h.limit,
                        h.dist_m, d->speed_kmh, d->gps_hdg_x10 / 10, (int)h.dir_deg);
-#if HUD_CAM_BEEP
-        if (h.limit && d->speed_kmh > h.limit) hud_sound_play(hud_snd_swa_beep, hud_snd_swa_beep_len);
-#endif
+        if (g_cam_beep && h.limit && d->speed_kmh > h.limit) hud_sound_play(hud_snd_swa_beep, hud_snd_swa_beep_len);
     }
     if (h.limit && h.dist_m <= HUD_CAM_OVERSPEED_M && (*lim_for_speed == 0 || h.limit < *lim_for_speed))
         *lim_for_speed = h.limit;
@@ -367,14 +366,25 @@ uint8_t hud_get_units(void)          { return g_units; }
 static volatile bool    g_psd   = HUD_PSD_LIMITS;
 static volatile bool    g_accel = HUD_ACCEL_BAR;
 static volatile bool    g_vze   = HUD_VZE_SIGNS;
-static volatile bool    g_favg  = HUD_FUEL_AVG;
+static volatile uint8_t g_fmode = HUD_FUEL_AVG ? 1 : 0;   /* полоска расхода: 0 мгновенный, 1 средний, 2 выкл */
 static volatile bool    g_gal   = HUD_VOLUME_GAL;
 void    hud_set_gallons(bool on)     { g_gal = on; }
 bool    hud_get_gallons(void)        { return g_gal; }
 void    hud_set_vze(bool on)         { g_vze = on; }
 bool    hud_get_vze(void)            { return g_vze; }
-void    hud_set_fuel_avg(bool on)    { g_favg = on; }
-bool    hud_get_fuel_avg(void)       { return g_favg; }
+void    hud_set_fuel_avg(bool on)    { g_fmode = on ? 1 : 0; }
+bool    hud_get_fuel_avg(void)       { return g_fmode == 1; }
+void    hud_set_fuel_mode(uint8_t m) { g_fmode = m > 2 ? 2 : m; }
+uint8_t hud_get_fuel_mode(void)      { return g_fmode; }
+static volatile uint8_t g_tank  = HUD_TANK_L;             /* объём бака, л (меню 30..90) */
+void    hud_set_tank(uint8_t l)      { g_tank = l < 30 ? 30 : l > 90 ? 90 : l; }
+uint8_t hud_get_tank(void)           { return g_tank; }
+static volatile bool    g_cams_on  = HUD_CAMS_ON;         /* камеры: показ */
+static volatile bool    g_cam_beep = HUD_CAM_BEEP;        /* камеры: сигнал */
+void    hud_set_cams(bool on)        { g_cams_on = on; }
+bool    hud_get_cams(void)           { return g_cams_on; }
+void    hud_set_cam_beep(bool on)    { g_cam_beep = on; }
+bool    hud_get_cam_beep(void)       { return g_cam_beep; }
 void    hud_set_psd(bool on)         { g_psd = on; }
 bool    hud_get_psd(void)            { return g_psd; }
 void    hud_set_accel_bar(bool on)   { g_accel = on; }
@@ -588,12 +598,12 @@ static void hud_update_cb(lv_timer_t *t)
            если его нет — свой средний по счётчику топлива; показывается с любой скорости.
            мгновенный — по счётчику Motor_04, с HUD_FUEL_ON_KMH */
         uint16_t fv = 0; bool show = false;
-        if (g_favg) {
+        if (g_fmode == 1) {
             if ((d.valid & V_BC) && d.bc_avg_x10 != 0xFFFF)          { fv = d.bc_avg_x10;   show = true; }
             else if ((d.valid & V_FUEL) && d.fuel_avg_x10 != 0xFFFF) { fv = d.fuel_avg_x10; show = true; }
-        } else {
+        } else if (g_fmode == 0) {
             fv = d.fuel_l100_x10; show = (d.valid & V_FUEL) && fast;
-        }
+        }                                                         /* 2 — выкл: show остаётся false */
         if (show) {
             uint32_t full_x10 = HUD_FUEL_FULL * 10u;
             int h;
@@ -901,7 +911,7 @@ static void hud_update_cb(lv_timer_t *t)
     {
         bool ok = d.valid & V_BCFUEL;
         if (ok) {
-            float l = HUD_TANK_L * (100u - d.bc_fuel_pct) / 100.0f;
+            float l = g_tank * (100u - d.bc_fuel_pct) / 100.0f;
             if (g_gal) {
                 unsigned g10 = (unsigned)(l / 3.78541f * 10.0f + 0.5f);       /* галлоны США */
                 snprintf(buf, sizeof buf, "%u.%u gal", g10 / 10, g10 % 10);
@@ -1083,13 +1093,14 @@ static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y
 #define C_MENU_BTN    0x3a3a3a
 #define C_MENU_DIM    0x9a9a9a
 
-enum { B_LANG_RU, B_LANG_EN, B_UNIT_KM, B_UNIT_MI, B_VOL_L, B_VOL_G, B_FUEL_I, B_FUEL_A,
-       B_VZE, B_PSD, B_ACCEL, B_SND, B_TOL, B_LDR, B_COUNT };
-enum { G_LANG, G_UNITS, G_VOL, G_FUEL, G_OPT, G_MORE, G_COUNT };
-static lv_obj_t *menu_box, *menu_title[G_COUNT], *menu_btn[B_COUNT], *menu_btn_lbl[B_COUNT];
+/* кнопки: основной экран (B_SND..B_MORE) и дополнительное меню «Ещё» (B_LANG_RU..B_BACK) */
+enum { B_LANG_RU, B_LANG_EN, B_UNIT_KM, B_UNIT_MI, B_VOL_L, B_VOL_G, B_TANK, B_LDR, B_BACK,
+       B_SND, B_TOL, B_VZE, B_PSD, B_ACCEL, B_CAM, B_CBEEP, B_FUEL, B_MORE, B_COUNT };
+enum { G_LANG, G_UNITS, G_VOL, G_TANK, G_LDR, G_COUNT };           /* заголовки колонок доп. меню */
+static lv_obj_t *menu_box, *menu_pg[2], *menu_title[G_COUNT], *menu_btn[B_COUNT], *menu_btn_lbl[B_COUNT];
 static uint32_t  menu_last_touch;
 
-/* панель ползунка: 0 — громкость, 1 — допуск превышения */
+/* панель ползунка: 0 — громкость, 1 — допуск превышения, 2 — объём бака */
 static lv_obj_t *ov_box, *ov_title, *ov_val, *ov_slider, *ov_ok_lbl;
 static int       ov_kind;
 
@@ -1112,48 +1123,71 @@ static void menu_sw(int b, bool on)
     lv_obj_set_style_text_color(menu_btn_lbl[b], lv_color_white(), 0);
 }
 
+static void menu_page(int p)
+{
+    for (int i = 0; i < 2; i++) { if (i == p) lv_obj_clear_flag(menu_pg[i], LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(menu_pg[i], LV_OBJ_FLAG_HIDDEN); }
+}
+
 static void menu_refresh(void)
 {
     bool en = g_lang == HUD_LANG_EN, mi = g_units == HUD_UNITS_MI;
-    static const char *t_ru[G_COUNT] = { "Язык", "Единицы", "Объём", "Расход", "Опции", "Прочее" };
-    static const char *t_en[G_COUNT] = { "Language", "Units", "Volume", "Fuel", "Options", "More" };
+    static const char *t_ru[G_COUNT] = { "Язык", "Единицы", "Объём", "Бак", "Яркость" };
+    static const char *t_en[G_COUNT] = { "Language", "Units", "Volume", "Tank", "Brightness" };
     for (int g = 0; g < G_COUNT; g++) lv_label_set_text(menu_title[g], en ? t_en[g] : t_ru[g]);
+    char buf[40];
 
+    /* основной экран */
+    snprintf(buf, sizeof buf, "%s\n%u", en ? "Sound" : "Звук", (unsigned)hud_sound_get_volume());
+    lv_label_set_text(menu_btn_lbl[B_SND], buf);
+    snprintf(buf, sizeof buf, "%s\n%u %s", en ? "Margin" : "Допуск", (unsigned)g_tol, en ? "km/h" : "км/ч");
+    lv_label_set_text(menu_btn_lbl[B_TOL], buf);
+    lv_label_set_text(menu_btn_lbl[B_VZE], en ? "Road\nsigns" : "Знаки на\nдороге");
+    lv_label_set_text(menu_btn_lbl[B_PSD], en ? "Speed limit\non the road" : "Ограничение\nна дороге");
+    lv_label_set_text(menu_btn_lbl[B_ACCEL], en ? "Accel" : "Разгон");
+    lv_label_set_text(menu_btn_lbl[B_CAM],   en ? "Cameras" : "Камеры");
+    lv_label_set_text(menu_btn_lbl[B_CBEEP], en ? "Camera\nalert" : "Сигнал\nкамер");
+    snprintf(buf, sizeof buf, "%s\n%s", en ? "Fuel" : "Расход",
+             g_fmode == 0 ? (en ? "Instant" : "Мгнов.") : g_fmode == 1 ? (en ? "Average" : "Средний") : (en ? "Off" : "Выкл"));
+    lv_label_set_text(menu_btn_lbl[B_FUEL], buf);
+    lv_label_set_text(menu_btn_lbl[B_MORE], en ? "More >" : "Ещё >");
+    menu_sel(B_SND, false);  menu_sel(B_TOL, false);  menu_sel(B_FUEL, false);  menu_sel(B_MORE, false);
+    lv_obj_set_style_text_color(menu_btn_lbl[B_MORE], lv_color_white(), 0);
+    menu_sw(B_VZE, g_vze);   menu_sw(B_PSD, g_psd);   menu_sw(B_ACCEL, g_accel);
+    menu_sw(B_CAM, g_cams_on);  menu_sw(B_CBEEP, g_cam_beep);
+
+    /* дополнительное меню */
     lv_label_set_text(menu_btn_lbl[B_LANG_RU], "Русский");
     lv_label_set_text(menu_btn_lbl[B_LANG_EN], "English");
     lv_label_set_text(menu_btn_lbl[B_UNIT_KM], en ? "km" : "км");
     lv_label_set_text(menu_btn_lbl[B_UNIT_MI], en ? "miles" : "мили");
     lv_label_set_text(menu_btn_lbl[B_VOL_L],   en ? "liters" : "литры");
     lv_label_set_text(menu_btn_lbl[B_VOL_G],   en ? "gallons" : "галлоны");
-    lv_label_set_text(menu_btn_lbl[B_FUEL_I],  en ? "Instant" : "Мгнов.");
-    lv_label_set_text(menu_btn_lbl[B_FUEL_A],  en ? "Average" : "Средний");
-    lv_label_set_text(menu_btn_lbl[B_VZE], "VZE");
-    lv_label_set_text(menu_btn_lbl[B_PSD], "PSD");
-    lv_label_set_text(menu_btn_lbl[B_ACCEL], en ? "Accel" : "Разгон");
-    char buf[32];
-    snprintf(buf, sizeof buf, "%s %u", en ? "Sound" : "Звук", (unsigned)hud_sound_get_volume());
-    lv_label_set_text(menu_btn_lbl[B_SND], buf);
-    snprintf(buf, sizeof buf, "%s %u", en ? "Margin" : "Допуск", (unsigned)g_tol);
-    lv_label_set_text(menu_btn_lbl[B_TOL], buf);
-
+    if (g_gal) { unsigned g10 = (unsigned)(g_tank / 3.78541f * 10.0f + 0.5f); snprintf(buf, sizeof buf, "%u.%u gal", g10 / 10, g10 % 10); }
+    else       snprintf(buf, sizeof buf, "%u %s", (unsigned)g_tank, en ? "L" : "л");
+    lv_label_set_text(menu_btn_lbl[B_TANK], buf);
+    lv_label_set_text(menu_btn_lbl[B_LDR],  en ? "Calibrate\nsensor" : "Калибровка\nдатчика");
+    lv_label_set_text(menu_btn_lbl[B_BACK], en ? "< Back" : "< Назад");
     menu_sel(B_LANG_RU, !en);        menu_sel(B_LANG_EN, en);
     menu_sel(B_UNIT_KM, !mi);        menu_sel(B_UNIT_MI, mi);
     menu_sel(B_VOL_L,   !g_gal);     menu_sel(B_VOL_G,   g_gal);
-    menu_sel(B_FUEL_I,  !g_favg);    menu_sel(B_FUEL_A,  g_favg);
-    menu_sw(B_VZE, g_vze);           menu_sw(B_PSD, g_psd);          menu_sw(B_ACCEL, g_accel);
-    menu_sel(B_SND, false);          menu_sel(B_TOL, false);
-    lv_label_set_text(menu_btn_lbl[B_LDR], en ? "Light sens." : "Датчик");
+    menu_sel(B_TANK, false);         menu_sel(B_BACK, false);
     menu_sel(B_LDR, hud_light_enabled());
+    lv_obj_set_style_text_color(menu_btn_lbl[B_BACK], lv_color_white(), 0);
 }
 
 /* ---- панель ползунка ---- */
+static int ov_lo(void)  { return ov_kind == 2 ? 30 : 0; }
+static int ov_hi(void)  { return ov_kind == 0 ? 100 : ov_kind == 1 ? 20 : 90; }
+static int ov_cur(void) { return ov_kind == 0 ? (int)hud_sound_get_volume() : ov_kind == 1 ? (int)g_tol : (int)g_tank; }
+
 static void ov_labels(void)
 {
     bool en = g_lang == HUD_LANG_EN;
-    int  v  = ov_kind == 0 ? (int)hud_sound_get_volume() : (int)g_tol;
+    int  v  = ov_cur();
     char buf[48];
     lv_label_set_text(ov_title, ov_kind == 0 ? (en ? "Sound volume" : "Громкость звука")
-                                             : (en ? "Overspeed margin, km/h" : "Допуск превышения, км/ч"));
+                              : ov_kind == 1 ? (en ? "Overspeed margin, km/h" : "Допуск превышения, км/ч")
+                                             : (en ? "Fuel tank volume, L" : "Объём бака, л"));
     snprintf(buf, sizeof buf, "%d", v);
     lv_label_set_text(ov_val, buf);
     lv_label_set_text(ov_ok_lbl, en ? "OK" : "Готово");
@@ -1164,11 +1198,11 @@ static void ov_labels(void)
 
 static void ov_set(int v)
 {
-    int mx = ov_kind == 0 ? 100 : 20;
-    if (v < 0) v = 0;
-    if (v > mx) v = mx;
-    if (ov_kind == 0) hud_sound_set_volume((uint8_t)v);
-    else              hud_set_overspeed_tol((uint8_t)v);
+    if (v < ov_lo()) v = ov_lo();
+    if (v > ov_hi()) v = ov_hi();
+    if (ov_kind == 0)      hud_sound_set_volume((uint8_t)v);
+    else if (ov_kind == 1) hud_set_overspeed_tol((uint8_t)v);
+    else                   hud_set_tank((uint8_t)v);
     ov_labels();
     menu_refresh();
 }
@@ -1183,8 +1217,8 @@ static void ov_open(int kind)
     ov_kind = kind;
     ov_labels();
 #if LV_USE_SLIDER
-    lv_slider_set_range(ov_slider, 0, kind == 0 ? 100 : 20);
-    lv_slider_set_value(ov_slider, kind == 0 ? (int)hud_sound_get_volume() : (int)g_tol, LV_ANIM_OFF);
+    lv_slider_set_range(ov_slider, ov_lo(), ov_hi());
+    lv_slider_set_value(ov_slider, ov_cur(), LV_ANIM_OFF);
 #endif
     lv_obj_clear_flag(ov_box, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(ov_box);
@@ -1293,7 +1327,7 @@ static void ov_step_cb(lv_event_t *e)
 {
     int dir = (int)(intptr_t)lv_event_get_user_data(e);
     int step = ov_kind == 0 ? 5 : 1;
-    ov_set((ov_kind == 0 ? (int)hud_sound_get_volume() : (int)g_tol) + dir * step);
+    ov_set(ov_cur() + dir * step);
     ov_beep();
     menu_last_touch = hud_now_ms();
 }
@@ -1308,14 +1342,18 @@ static void menu_btn_cb(lv_event_t *e)
     case B_UNIT_MI: hud_set_units(HUD_UNITS_MI); break;
     case B_VOL_L:   hud_set_gallons(false); break;
     case B_VOL_G:   hud_set_gallons(true); break;
-    case B_FUEL_I:  hud_set_fuel_avg(false); break;
-    case B_FUEL_A:  hud_set_fuel_avg(true); break;
+    case B_FUEL:    hud_set_fuel_mode((g_fmode + 1) % 3); break;           /* мгновенный -> средний -> выкл */
     case B_VZE:     hud_set_vze(!g_vze); break;
     case B_PSD:     hud_set_psd(!g_psd); break;
     case B_ACCEL:   hud_set_accel_bar(!g_accel); break;
+    case B_CAM:     hud_set_cams(!g_cams_on); break;
+    case B_CBEEP:   hud_set_cam_beep(!g_cam_beep); break;
     case B_SND:     menu_last_touch = hud_now_ms(); ov_open(0); return;
     case B_TOL:     menu_last_touch = hud_now_ms(); ov_open(1); return;
+    case B_TANK:    menu_last_touch = hud_now_ms(); ov_open(2); return;
     case B_LDR:     menu_last_touch = hud_now_ms(); cal_open(); return;
+    case B_MORE:    menu_last_touch = hud_now_ms(); menu_page(1); return;
+    case B_BACK:    menu_last_touch = hud_now_ms(); menu_page(0); return;
     }
     menu_last_touch = hud_now_ms();
     menu_refresh();
@@ -1331,6 +1369,7 @@ static void menu_open_cb(lv_event_t *e)
 {
     (void)e;
     menu_refresh();
+    menu_page(0);
     menu_last_touch = hud_now_ms();
     lv_obj_add_flag(ov_box, LV_OBJ_FLAG_HIDDEN);
     cal_close();
@@ -1496,37 +1535,58 @@ static void build_menu(lv_obj_t *scr)
     lv_obj_clear_flag(menu_box, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(menu_box, menu_any_touch_cb, LV_EVENT_PRESSED, NULL);
 
-    /* 6 колонок по 98 px; закрытие — двойное касание где угодно; колонка «Прочее» шире */
-    const int colw = 98, gap = 3, x0 = 3, ytop = 36, hfull = 128, hhalf = 61, h3 = 38;
-    for (int g = 0; g < G_COUNT; g++) {
-        int x = x0 + g * (colw + gap);
-        menu_title[g] = lv_label_create(menu_box);
-        lv_obj_set_style_text_font(menu_title[g], &hud_font_menu, 0);
-        lv_obj_set_style_text_color(menu_title[g], lv_color_hex(C_MENU_DIM), 0);
-        lv_obj_set_width(menu_title[g], g == G_MORE ? colw + 28 : colw);
-        lv_obj_set_style_text_align(menu_title[g], LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_pos(menu_title[g], x, 7);
+    for (int pg = 0; pg < 2; pg++) {                       /* страницы: 0 — основной экран, 1 — «Ещё» */
+        menu_pg[pg] = lv_obj_create(menu_box);
+        lv_obj_remove_style_all(menu_pg[pg]);
+        lv_obj_set_size(menu_pg[pg], 640, 172);
+        lv_obj_set_pos(menu_pg[pg], 0, 0);
+        lv_obj_clear_flag(menu_pg[pg], LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_event_cb(menu_pg[pg], menu_any_touch_cb, LV_EVENT_PRESSED, NULL);
     }
-    #define COLX(g) (x0 + (g) * (colw + gap))
-    #define Y2(i)   (ytop + (i) * (hhalf + 6))
-    #define Y3(i)   (ytop + (i) * (h3 + 6))
-    #define MKB(id, g, y, h) menu_btn[id] = menu_mk_btn(menu_box, COLX(g), y, (g) == G_MORE ? colw + 28 : colw, h, &menu_btn_lbl[id])
-    MKB(B_LANG_RU, G_LANG,  Y2(0), hhalf);  MKB(B_LANG_EN, G_LANG,  Y2(1), hhalf);
-    MKB(B_UNIT_KM, G_UNITS, Y2(0), hhalf);  MKB(B_UNIT_MI, G_UNITS, Y2(1), hhalf);
-    MKB(B_VOL_L,   G_VOL,   Y2(0), hhalf);  MKB(B_VOL_G,   G_VOL,   Y2(1), hhalf);
-    MKB(B_FUEL_I,  G_FUEL,  Y2(0), hhalf);  MKB(B_FUEL_A,  G_FUEL,  Y2(1), hhalf);
-    MKB(B_VZE,     G_OPT,   Y3(0), h3);     MKB(B_PSD,     G_OPT,   Y3(1), h3);
-    MKB(B_ACCEL,   G_OPT,   Y3(2), h3);
-    MKB(B_SND,     G_MORE,  Y3(0), h3);     MKB(B_TOL,     G_MORE,  Y3(1), h3);
-    MKB(B_LDR,     G_MORE,  Y3(2), h3);
+    #define MKB(id, pg, x, y, w, h) menu_btn[id] = menu_mk_btn(menu_pg[pg], x, y, w, h, &menu_btn_lbl[id])
+
+    /* основной экран: 2 ряда по 80 px; ряд 1 — звук, допуск, знаки, ограничение, разгон;
+       ряд 2 — камеры, сигнал камер, расход, [пусто], «Ещё». Колонки ряда 2 — под колонками ряда 1 */
+    {
+        const int g = 3, x0 = 3, y1 = 4, y2 = 88, h = 80;
+        const int w1[5] = { 100, 110, 125, 172, 113 };
+        int x[5]; x[0] = x0; for (int i = 1; i < 5; i++) x[i] = x[i - 1] + w1[i - 1] + g;
+        MKB(B_SND,   0, x[0], y1, w1[0], h);  MKB(B_TOL,  0, x[1], y1, w1[1], h);
+        MKB(B_VZE,   0, x[2], y1, w1[2], h);  MKB(B_PSD,  0, x[3], y1, w1[3], h);
+        MKB(B_ACCEL, 0, x[4], y1, w1[4], h);
+        MKB(B_CAM,   0, x[0], y2, w1[0], h);  MKB(B_CBEEP, 0, x[1], y2, w1[1], h);
+        MKB(B_FUEL,  0, x[2], y2, w1[2], h);  MKB(B_MORE,  0, x[4], y2, w1[4], h);
+#if !HUD_CAMS
+        lv_obj_add_flag(menu_btn[B_CAM], LV_OBJ_FLAG_HIDDEN);          /* камеры не скомпилированы */
+        lv_obj_add_flag(menu_btn[B_CBEEP], LV_OBJ_FLAG_HIDDEN);
+#endif
+    }
+
+    /* дополнительное меню «Ещё»: колонки заголовок + кнопки; редко меняемое */
+    {
+        const int g = 3, ytop = 36, hhalf = 61, hfull = 128;
+        const int cx[6] = { 3, 102, 201, 300, 399, 537 };
+        const int cw[6] = { 98, 98, 98, 98, 135, 100 };
+        for (int k = 0; k < G_COUNT; k++) {
+            menu_title[k] = lv_label_create(menu_pg[1]);
+            lv_obj_set_style_text_font(menu_title[k], &hud_font_menu, 0);
+            lv_obj_set_style_text_color(menu_title[k], lv_color_hex(C_MENU_DIM), 0);
+            lv_obj_set_width(menu_title[k], cw[k]);
+            lv_obj_set_style_text_align(menu_title[k], LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_pos(menu_title[k], cx[k], 7);
+        }
+        MKB(B_LANG_RU, 1, cx[0], ytop, cw[0], hhalf);  MKB(B_LANG_EN, 1, cx[0], ytop + hhalf + 6, cw[0], hhalf);
+        MKB(B_UNIT_KM, 1, cx[1], ytop, cw[1], hhalf);  MKB(B_UNIT_MI, 1, cx[1], ytop + hhalf + 6, cw[1], hhalf);
+        MKB(B_VOL_L,   1, cx[2], ytop, cw[2], hhalf);  MKB(B_VOL_G,   1, cx[2], ytop + hhalf + 6, cw[2], hhalf);
+        MKB(B_TANK,    1, cx[3], ytop, cw[3], hfull);
+        MKB(B_LDR,     1, cx[4], ytop, cw[4], hfull);
+        MKB(B_BACK,    1, cx[5], ytop, cw[5], hfull);
+        (void)g;
+    }
     #undef MKB
-    #undef Y3
-    #undef Y2
     for (int b = 0; b < B_COUNT; b++)
         lv_obj_add_event_cb(menu_btn[b], menu_btn_cb, LV_EVENT_CLICKED, (void *)(intptr_t)b);
-    (void)hfull;
-
-    #undef COLX
+    menu_page(0);
 
     build_ov(scr);                         /* панель ползунка — поверх меню */
     build_cal(scr);                        /* панель калибровки датчика света */
