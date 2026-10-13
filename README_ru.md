@@ -226,7 +226,7 @@ Audi I-CAN (500 кбит/с)
 
 ### База камер (`cams.bin`)
 
-1. Возьмите базу камер Datakam (`speedcam_*.bin`) и сконвертируйте: `python3 tools/gen_cams.py speedcam_D6.bin cams.bin` (опционально `--bbox lat0 lon0 lat1 lon1` — вырезать регион; вся Россия ≈ 2,2 МБ). Формат и найденные коды типов описаны в шапке скрипта.
+1. Возьмите базу камер Datakam (`speedcam_*.bin`) и сконвертируйте: `python3 tools/gen_cams.py speedcam_D6.bin cams.bin` (опционально `--bbox lat0 lon0 lat1 lon1` — вырезать регион; вся Россия ≈ 2,2 МБ). Формат и найденные коды типов описаны в [docs/cams_format.md](docs/cams_format.md).
 2. Arduino IDE: **Tools → Partition Scheme → «16M Flash (3MB APP/9.9MB FATFS)»** (та же схема нужна для OTA) и **PSRAM: OPI**; при старте база читается в PSRAM.
 3. Удерживайте **BOOT** (режим обновления), откройте `http://192.168.4.1`, в блоке «База камер» выберите `cams.bin` и загрузите; HUD перезагрузится. Файл лежит в разделе FATFS флеша как `/cams.bin`.
 4. Проверка без машины: `gcc -O2 -o cam_replay tools/cam_replay.c waveshare_hud_mockup/cam_alert.c -Iwaveshare_hud_mockup -lm && ./cam_replay cams.bin can_log_0004.txt` проигрывает лог снифера против базы и печатает, где HUD показал бы камеры. `cam_replay` — отладочная утилита только для ПК (в прошивку не входит): берёт из лога позицию (0x486), курс (0x484) и скорость (0x30B), вызывает тот же `cam_query()`, что и HUD, и печатает каждое срабатывание с расстоянием. Нужна, чтобы проверить базу на своих поездках и подобрать `HUD_CAM_*` без перепрошивки; необязательный третий аргумент — маска типов в hex (по умолчанию `1` = код 510).
