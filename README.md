@@ -230,7 +230,7 @@ The Wi-Fi password is `HUD_OTA_PASS` from `secrets.h` (default `hud12345` — ch
 1. Get a Datakam speed-camera base (`speedcam_*.bin`) and convert it: `python3 tools/gen_cams.py speedcam_D6.bin cams.bin` (optional `--bbox lat0 lon0 lat1 lon1` to cut a region; the whole of Russia is ~2.2 MB). The format and the type codes found so far are described in the script header.
 2. Arduino IDE: **Tools → Partition Scheme → "16M Flash (3MB APP/9.9MB FATFS)"** (the same scheme OTA needs) and **PSRAM: OPI**; the database is read into PSRAM at start.
 3. Hold **BOOT** (update mode), open `http://192.168.4.1`, in the "Camera database" block choose `cams.bin` and upload; the HUD reboots. The file lives in the flash FATFS partition as `/cams.bin`.
-4. Check without the car: `gcc -O2 -o cam_replay tools/cam_replay.c waveshare_hud_mockup/cam_alert.c -Iwaveshare_hud_mockup -lm && ./cam_replay cams.bin can_log_0004.txt` replays a sniffer log against the database and prints where the HUD would show cameras.
+4. Check without the car: `gcc -O2 -o cam_replay tools/cam_replay.c waveshare_hud_mockup/cam_alert.c -Iwaveshare_hud_mockup -lm && ./cam_replay cams.bin can_log_0004.txt` replays a sniffer log against the database and prints where the HUD would show cameras. `cam_replay` is a PC-only debugging tool (not part of the firmware): it takes position (0x486), heading (0x484) and speed (0x30B) from the log, calls the same `cam_query()` as the HUD and prints each alert with the distance. Use it to check the database on your own drives and to tune `HUD_CAM_*` without reflashing; an optional third argument is the type mask in hex (default `1` = code 510).
 
 Mobile cameras / tripods are not in the Datakam base and are not supported (they do not stay in place).
 
@@ -646,6 +646,8 @@ several times (noting the times), then look for bits that change at those moment
 │   ├── gen_hud_images.py      icon and car view generator
 │   ├── gen_nav_images.py      arrow generator
 │   ├── can_bitdiff.py         find changing bits in a log
+│   ├── gen_cams.py            Datakam base -> cams.bin (camera database)
+│   ├── cam_replay.c           PC tool: replays a CAN log against cams.bin with the same cam_alert.c as the HUD
 │   ├── make_sounds.py         sounds from tools/sounds/ to hud_sounds.c (needs ffmpeg)
 │   ├── synth_startup.py       synthesises the startup sound from scratch (numpy), own rights
 │   ├── sounds/                sound sources (startup.wav, swa_beep.wav — synthesised)
