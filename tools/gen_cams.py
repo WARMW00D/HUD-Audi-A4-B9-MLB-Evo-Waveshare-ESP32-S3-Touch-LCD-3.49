@@ -1,65 +1,112 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gen_cams.py — конвертер базы камер Datakam (speedcam_*.bin) в компактный cams.bin для HUD.
+gen_cams.py — конвертер базы камер в компактный cams.bin для HUD.
 
-Вход (формат Datakam, найден разбором файла):
-  0..63   текстовый заголовок "DATAKAM. MOSCOW. SPEEDCAM BASE.\r\n СОЗДАН ОТ: дд.мм.гг\r\n\r\n"
-  64..67  u32 число записей N
-  68..    N записей по 23 байта, little-endian:
-      0  f32 долгота          4  f32 широта
-      8  u16 код типа (510,530,700..760). Сверка с размеченным списком (cams.txt, ~1270 точек,
-         совпадение до 30 м): 510 = стационарная камера (СТЦ; муляжи МЛЖ, ММ, ДПСкам идут тем же кодом),
-         760 = пост ДПС / ДПС мобильный; 700, 710, 720 — по cams.bkm объекты с дальностью 50 м (не камеры скорости,
-         вероятно неровности / переезды); 530 — всего 4 точки типа 18952, не расшифрован; 730, 740, 750 — не расшифрованы.
-         Мобильные (тренога, ДПСмоб, МЗ) в Datakam разбросаны по 510/760/530/700/750 — отделить их нельзя
-     10  u16 ограничение, км/ч
-     12  u16 направление, ° (360 = без направления)
-     14  u16 радиус оповещения, м (всегда 500)
-     16  u16 константа 10
-     18  u8  признак 0/1/2
-     19  u32 ключ (по нему база отсортирована у Datakam), HUD не использует
-  Проверено по логу: курс машины при проезде записи совпадает с её направлением.
+Основной источник — speedcamonline.ru, формат iGo extended, без мобильных:
+    https://speedcamonline.ru/igoext/Rus/nomobile/
+CSV с заголовком `IDX,X,Y,TYPE,SPEED,DIRTYPE,DIRECTION` (X — долгота, Y — широта).
+TYPE: 192/194 — стационарная камера, 206 — пост ДПС, 193/199 — мобильная/тренога
+(в nomobile нет), 68 — не расшифрован. SPEED — лимит км/ч (0 — неизвестен).
+DIRECTION в iGo повёрнут на 180° относительно «направления движения», поэтому конвертер прибавляет 180°.
+Битые/оборванные строки (файл с сайта иногда обрывается) пропускаются.
 
-Выход cams.bin (little-endian), записи отсортированы по ячейке сетки 0.05°:
-  заголовок 16 байт: "CAM1", u32 N, u32 дата (ддммгг числом), u32 резерв
-  запись 12 байт:   f32 lat, f32 lon, u16 направление (0xFFFF — нет), u8 лимит км/ч,
-                    u8 (индекс типа 0..8 | признак<<4)
-Запуск:  python3 gen_cams.py speedcam_D6.bin [cams.bin] [--bbox lat0 lon0 lat1 lon1]
+Дополнительно можно подмешать базу Datakam (speedcam_*.bin): её записи кодов 510 и 760 добавляются,
+только если рядом (≤ 30 м) в основной базе нет записи того же типа. Формат Datakam: docs/cams_format.md.
+
+Формат выхода cams.bin — docs/cams_format.md.
+
+Запуск:
+  python3 gen_cams.py igo.csv                        # -> cams.bin
+  python3 gen_cams.py igo.csv speedcam_D6.bin -o cams.bin --bbox 55.0 36.5 56.3 38.5
+Формат входа определяется по содержимому. Первый файл — основной, остальные — дополнение.
 """
-import struct, sys, re, math
+import struct, sys, re, os, math, argparse, time
 
-CODES = [510, 530, 700, 710, 720, 730, 740, 750, 760]
-CELL = 20      # ячеек на градус (0.05°)
+CELL = 20                                   # ячеек на градус (0.05°)
+DK_CODES = [510, 530, 700, 710, 720, 730, 740, 750, 760]   # индексы 0..8 (как у Datakam)
+IGO_TYPES = {192: 0, 194: 0, 206: 8, 68: 1, 193: 9, 199: 10}  # iGo TYPE -> индекс типа в cams.bin
+MERGE_M = 30.0
 
-def main():
-    a = [x for x in sys.argv[1:] if not x.startswith('--')]
-    if not a: sys.exit(__doc__)
-    src = a[0]; dst = a[1] if len(a) > 1 and not re.match(r'^-?\d', a[1]) else 'cams.bin'
-    bbox = None
-    if '--bbox' in sys.argv:
-        k = sys.argv.index('--bbox'); bbox = [float(x) for x in sys.argv[k+1:k+5]]
-        if dst == sys.argv[k+1]: dst = 'cams.bin'
-    b = open(src, 'rb').read()
-    head = b[:64].decode('cp1251', 'ignore')
-    m = re.search(r'(\d\d)\.(\d\d)\.(\d\d)', head)
+
+def read_igo(path):
+    """-> (список (lat, lon, dir|None, lim, type_idx, flag), дата ддммгг, число строк)"""
+    out, n = [], 0
+    with open(path, encoding='utf-8', errors='ignore') as f:
+        for line in f:
+            p = line.strip().split(',')
+            if not p or p[0] == 'IDX' or len(p) != 7: continue
+            n += 1
+            try:
+                lon, lat = float(p[1]), float(p[2])
+                t, lim, dtype, d = int(p[3]), int(p[4]), int(p[5]), int(p[6])
+            except ValueError:
+                continue
+            if t not in IGO_TYPES: continue
+            hd = None if (dtype == 0 or d >= 360) else (d + 180) % 360
+            out.append((lat, lon, hd, min(max(lim, 0), 255), IGO_TYPES[t], 0))
+    d = time.localtime(os.path.getmtime(path))
+    return out, int('%02d%02d%02d' % (d.tm_mday, d.tm_mon, d.tm_year % 100)), n
+
+
+def read_datakam(path):
+    b = open(path, 'rb').read()
+    m = re.search(r'(\d\d)\.(\d\d)\.(\d\d)', b[:64].decode('cp1251', 'ignore'))
     date = int(m.group(1) + m.group(2) + m.group(3)) if m else 0
     n = struct.unpack_from('<I', b, 64)[0]
-    if 68 + n * 23 != len(b): sys.exit('размер файла не сходится с числом записей — формат другой?')
+    if 68 + n * 23 != len(b): sys.exit(path + ': размер не сходится с числом записей — формат другой?')
     out = []
     for i in range(n):
         r = b[68 + i * 23: 68 + (i + 1) * 23]
         lon, lat = struct.unpack_from('<ff', r, 0)
         code, lim, hd = struct.unpack_from('<HHH', r, 8)
-        fl = r[18]
-        if not (19 < lon < 180 and 40 < lat < 82): continue
-        if bbox and not (bbox[0] <= lat <= bbox[2] and bbox[1] <= lon <= bbox[3]): continue
-        t = CODES.index(code) if code in CODES else 15
-        out.append((int(lat * CELL), int(lon * CELL), lat, lon, 0xFFFF if hd >= 360 else hd, min(lim, 255), t | (fl & 3) << 4))
-    out.sort(key=lambda x: (x[0], x[1]))
-    with open(dst, 'wb') as f:
-        f.write(b'CAM1' + struct.pack('<III', len(out), date, 0))
-        for o in out: f.write(struct.pack('<ffHBB', o[2], o[3], o[4], o[5], o[6]))
-    print(f'{dst}: {len(out)} камер из {n}, {16 + 12 * len(out)} байт, база от {date:06d}')
+        t = DK_CODES.index(code) if code in DK_CODES else 15
+        out.append((lat, lon, None if hd >= 360 else hd, min(lim, 255), t, r[18] & 3))
+    return out, date, n
+
+
+def is_igo(path):
+    with open(path, 'rb') as f: return f.read(4) in (b'IDX,', b'\xef\xbb\xbf')
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('inputs', nargs='+', help='iGo-ext CSV (основной), затем, при желании, speedcam_*.bin Datakam')
+    ap.add_argument('-o', '--out', default='cams.bin')
+    ap.add_argument('--bbox', nargs=4, type=float, metavar=('LAT0', 'LON0', 'LAT1', 'LON1'))
+    a = ap.parse_args()
+
+    recs, date, total = [], 0, 0
+    grid = {}                                   # для проверки «рядом уже есть» при подмешивании
+    for k, path in enumerate(a.inputs):
+        rows, d, n = read_igo(path) if is_igo(path) else read_datakam(path)
+        total += n; date = date or d
+        added = 0
+        for r in rows:
+            lat, lon = r[0], r[1]
+            if not (19 < lon < 180 and 40 < lat < 82): continue
+            if a.bbox and not (a.bbox[0] <= lat <= a.bbox[2] and a.bbox[1] <= lon <= a.bbox[3]): continue
+            if k > 0:
+                if r[4] not in (0, 8): continue                 # из Datakam берём только 510 и 760
+                cx, cy = int(lon * 100), int(lat * 100)         # ячейка ~1 км
+                dup = False
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        for q in grid.get((cx + dx, cy + dy), ()):
+                            if q[4] == r[4]:
+                                dy_m = (q[0] - lat) * 111200
+                                dx_m = (q[1] - lon) * 111200 * math.cos(math.radians(lat))
+                                if dx_m * dx_m + dy_m * dy_m <= MERGE_M ** 2: dup = True
+                if dup: continue
+            recs.append(r); added += 1
+            grid.setdefault((int(lon * 100), int(lat * 100)), []).append(r)
+        print(f'{path}: {added} записей добавлено из {n}')
+    recs.sort(key=lambda r: (int(r[0] * CELL), int(r[1] * CELL)))
+    with open(a.out, 'wb') as f:
+        f.write(b'CAM1' + struct.pack('<III', len(recs), date, 0))
+        for r in recs:
+            f.write(struct.pack('<ffHBB', r[0], r[1], 0xFFFF if r[2] is None else r[2], r[3], r[4] | r[5] << 4))
+    print(f'{a.out}: {len(recs)} камер, {16 + 12 * len(recs)} байт, база от {date:06d}')
+
 
 if __name__ == '__main__': main()

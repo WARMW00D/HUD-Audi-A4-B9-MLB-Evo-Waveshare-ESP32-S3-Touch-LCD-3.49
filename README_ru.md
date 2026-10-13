@@ -226,7 +226,7 @@ Audi I-CAN (500 кбит/с)
 
 ### База камер (`cams.bin`)
 
-1. Возьмите базу камер Datakam (`speedcam_*.bin`) и сконвертируйте: `python3 tools/gen_cams.py speedcam_D6.bin cams.bin` (опционально `--bbox lat0 lon0 lat1 lon1` — вырезать регион; вся Россия ≈ 2,2 МБ). Формат и найденные коды типов описаны в [docs/cams_format.md](docs/cams_format.md).
+1. Скачайте список камер с speedcamonline.ru в формате iGo extended без мобильных (`https://speedcamonline.ru/igoext/Rus/nomobile/`, CSV; убедитесь, что загрузка не оборвалась) и сконвертируйте: `python3 tools/gen_cams.py igo.csv -o cams.bin`. Базу Datakam (`speedcam_*.bin`) можно добавить следом как дополнение: `python3 tools/gen_cams.py igo.csv speedcam_D6.bin -o cams.bin`. Опционально `--bbox lat0 lon0 lat1 lon1` — вырезать регион. Формат и найденные коды типов описаны в [docs/cams_format.md](docs/cams_format.md).
 2. Arduino IDE: **Tools → Partition Scheme → «16M Flash (3MB APP/9.9MB FATFS)»** (та же схема нужна для OTA) и **PSRAM: OPI**; при старте база читается в PSRAM.
 3. Удерживайте **BOOT** (режим обновления), откройте `http://192.168.4.1`, в блоке «База камер» выберите `cams.bin` и загрузите; HUD перезагрузится. Файл лежит в разделе FATFS флеша как `/cams.bin`.
 4. Проверка без машины: `gcc -O2 -o cam_replay tools/cam_replay.c waveshare_hud_mockup/cam_alert.c -Iwaveshare_hud_mockup -lm && ./cam_replay cams.bin can_log_0004.txt` проигрывает лог снифера против базы и печатает, где HUD показал бы камеры. `cam_replay` — отладочная утилита только для ПК (в прошивку не входит): берёт из лога позицию (0x486), курс (0x484) и скорость (0x30B), вызывает тот же `cam_query()`, что и HUD, и печатает каждое срабатывание с расстоянием. Нужна, чтобы проверить базу на своих поездках и подобрать `HUD_CAM_*` без перепрошивки; необязательный третий аргумент — маска типов в hex (по умолчанию `1` = код 510).
@@ -643,7 +643,7 @@ python tools/can_bitdiff.py can_log_0001.txt.lzma 0x394 --from 30 --to 60
 │   ├── gen_hud_images.py      генератор значков и машинки
 │   ├── gen_nav_images.py      генератор стрелок
 │   ├── can_bitdiff.py         поиск меняющихся битов в логе
-│   ├── gen_cams.py            база Datakam -> cams.bin (база камер)
+│   ├── gen_cams.py            speedcamonline.ru (iGo-ext) + Datakam -> cams.bin (база камер)
 │   ├── cam_replay.c           утилита для ПК: проигрывает CAN-лог против cams.bin тем же cam_alert.c, что и HUD
 │   ├── make_sounds.py         звуки из tools/sounds/ в hud_sounds.c (нужен ffmpeg)
 │   ├── synth_startup.py       синтез стартового звука с нуля (numpy), свои права на звук
