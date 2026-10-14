@@ -7,6 +7,7 @@
 #include "esp_heap_caps.h"
 #include "hud_diag.h"
 #include "hud_source.h"
+#include "hud_mockup.h"
 
 extern "C" {
 hud_diag_t g_diag;
@@ -20,6 +21,8 @@ extern "C" void hud_diag_save(void)
     g_diag.psram_free = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     g_diag.reset_reason = (uint8_t)esp_reset_reason();
     g_diag.src = (int8_t)hud_src_current();
+    g_diag.cams_on = hud_get_cams();
+    g_diag.cam_beep = hud_get_cam_beep();
     Preferences p;
     if (p.begin("hudd", false)) { p.putBytes("d", &g_diag, sizeof g_diag); p.end(); }
 }
