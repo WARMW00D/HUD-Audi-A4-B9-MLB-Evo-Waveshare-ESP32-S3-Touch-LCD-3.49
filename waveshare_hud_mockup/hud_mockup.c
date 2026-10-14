@@ -37,6 +37,7 @@
 #include "psd_speedlimit.h"
 #include "hud_log.h"
 #include "cam_alert.h"
+#include "hud_diag.h"
 #include "hud_cams.h"
 #include "src/lcd_bl_bsp/lcd_bl_pwm_bsp.h"
 
@@ -237,10 +238,25 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
 {
     static uint32_t beeped = 0xFFFFFFFFu;
     cam_hit_t h; bool hit = false;
-    if (g_cams_on && hud_cams_ready() && (d->valid & (V_GPS | V_HDG | V_SPEED)) == (V_GPS | V_HDG | V_SPEED) &&
-        d->gps_fix == 3 && d->gps_sat >= 4 && d->gps_hdop_x10 <= HUD_CAM_MAX_HDOP_X10 &&
-        d->gps_hdg_x10 != 0xFFFF && d->speed_kmh >= HUD_CAM_MIN_SPEED_KMH)
+    g_diag.ticks++;
+    if (d->valid & V_SPEED) { if (d->speed_kmh > g_diag.max_spd) g_diag.max_spd = d->speed_kmh; }
+    bool gate = false;
+    if (!g_cams_on)                          g_diag.no_cams_on++;
+    else if (!hud_cams_ready())              g_diag.no_db++;
+    else if (!(d->valid & V_GPS))            g_diag.no_gps++;
+    else if (!(d->valid & V_HDG))            g_diag.no_hdg++;
+    else if (!(d->valid & V_SPEED))          g_diag.no_spd++;
+    else if (d->gps_fix != 3)                g_diag.no_fix++;
+    else if (d->gps_sat < 4)                 g_diag.no_sat++;
+    else if (d->gps_hdop_x10 > HUD_CAM_MAX_HDOP_X10) g_diag.no_hdop++;
+    else if (d->gps_hdg_x10 == 0xFFFF)       g_diag.no_hdg_val++;
+    else if (d->speed_kmh < HUD_CAM_MIN_SPEED_KMH)   g_diag.too_slow++;
+    else gate = true;
+    if (gate) {
+        g_diag.q_run++; g_diag.lat_e6 = d->gps_lat_e6; g_diag.lon_e6 = d->gps_lon_e6;
         hit = cam_query(d->gps_lat_e6 / 1e6, d->gps_lon_e6 / 1e6, d->gps_hdg_x10 / 10.0f, (float)d->speed_kmh, &h);
+        if (hit) g_diag.q_hit++;
+    }
 
     g_cam_active = hit;
     vis(cm_disc, hit); vis(cm_dist, hit); vis(cm_eye, hit);
@@ -260,6 +276,7 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
 
     if (h.idx != beeped) {                              /* новая камера */
         beeped = h.idx;
+        g_diag.shown++; g_diag.last_idx = h.idx; g_diag.last_lim = h.limit; g_diag.last_dist_m = (uint16_t)h.dist_m; g_diag.last_spd = d->speed_kmh;
         arduino_printf("[cam] #%lu лимит %u с %.0f м, v=%u, курс %u/кам %d\n", (unsigned long)h.idx, h.limit,
                        h.dist_m, d->speed_kmh, d->gps_hdg_x10 / 10, (int)h.dir_deg);
         if (g_cam_beep && h.limit && d->speed_kmh > h.limit) hud_sound_play(hud_snd_swa_beep, hud_snd_swa_beep_len);

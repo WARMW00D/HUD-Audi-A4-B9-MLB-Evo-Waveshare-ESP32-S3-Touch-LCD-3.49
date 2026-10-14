@@ -19,6 +19,7 @@
 #include "hud_sound.h"
 #include "hud_ota.h"
 #include "hud_ota_logs.h"
+#include "hud_diag.h"
 extern "C" {
 #include "hud_sounds.h"
 }
@@ -94,6 +95,7 @@ static void button_task(void *)
         }
         hud_log_write("[ota] BOOT удержан — перезагрузка в режим обновления\n");
         hud_sound_play(hud_snd_swa_beep, hud_snd_swa_beep_len);
+        hud_diag_save();                                  /* отчёт о сеансе — на страницу обновления */
         Preferences p;
         if (p.begin("hud", false)) { p.putBool("ota", true); p.end(); }
         vTaskDelay(pdMS_TO_TICKS(400));
@@ -124,6 +126,8 @@ progress{width:100%;height:20px}#m{margin-top:12px;min-height:24px}small{color:#
 <input type="file" id="g" accept=".bin"><br>
 <button id="c" onclick="upc()">Загрузить базу / Upload database</button>
 <progress id="q" value="0" max="100" style="display:none"></progress><div id="n"></div>
+<hr><h1>Диагностика / Diagnostics</h1>
+%DIAG%
 <hr><h1>Журналы / Logs</h1>
 <p><a href="/logs">Открыть журналы с SD-карты / Open logs from the SD card</a></p>
 <script>
@@ -210,6 +214,38 @@ static String cams_file_status()
     return String("в флеше: ") + String((unsigned)h[1]) + " камер, от " + b + ", " + String((unsigned)(sz / 1024)) + " КБ / in flash";
 }
 
+/* отчёт о прошлом сеансе (снимок пишется при удержании BOOT, см. hud_diag.h) */
+static String diag_html()
+{
+    hud_diag_t g;
+    if (!hud_diag_load(&g)) return "<p><small>Нет данных: отчёт сохраняется, когда вы удерживаете BOOT в обычном режиме. / No data yet: the report is saved when BOOT is held in normal mode.</small></p>";
+    static const char *const DB[] = { "не загружалась", "загружена", "нет раздела FATFS", "нет /cams.bin", "нет памяти", "файл повреждён" };
+    static const char *const RR[] = { "?", "питание", "внешний", "программный", "паника", "int. watchdog", "task watchdog", "other watchdog", "deep sleep", "brownout", "SDIO" };
+    String s = "<p><small>Прошлый сеанс / last session</small></p><table style='border-collapse:collapse;font-size:14px'>";
+    auto row = [&](const String &k, const String &v) { s += "<tr><td style='padding:2px 10px 2px 0;color:#999'>" + k + "</td><td>" + v + "</td></tr>"; };
+    uint32_t m = g.uptime_s / 60;
+    row("Длительность / uptime", String((unsigned)(m / 60)) + " ч " + String((unsigned)(m % 60)) + " мин");
+    row("Сброс при старте / reset", g.reset_reason < 11 ? RR[g.reset_reason] : "?");
+    row("Источник / source", g.src == 1 ? "CAN" : g.src == 0 ? "BLE" : "нет связи / none");
+    row("База камер / database", String(g.db_status < 6 ? DB[g.db_status] : "?") + (g.db_status == DB_OK ? String(", ") + String((unsigned)g.db_n) + " камер" : String("")));
+    row("Показ / сигнал камер", String(g.cams_on ? "вкл" : "ВЫКЛ") + " / " + (g.cam_beep ? "вкл" : "выкл"));
+    row("Тиков проверки / ticks", String((unsigned)g.ticks));
+    row("— показ выключен", String((unsigned)g.no_cams_on));
+    row("— база не загружена", String((unsigned)g.no_db));
+    row("— нет GPS / курса / скорости", String((unsigned)g.no_gps) + " / " + String((unsigned)g.no_hdg) + " / " + String((unsigned)g.no_spd));
+    row("— fix≠3 / спутников<4 / HDOP", String((unsigned)g.no_fix) + " / " + String((unsigned)g.no_sat) + " / " + String((unsigned)g.no_hdop));
+    row("— курс не определён / скорость мала", String((unsigned)g.no_hdg_val) + " / " + String((unsigned)g.too_slow));
+    row("Запросов к базе / queries", String((unsigned)g.q_run));
+    row("Камера найдена (тиков) / hits", String((unsigned)g.q_hit));
+    row("Показано камер / shown", String((unsigned)g.shown));
+    if (g.shown) row("Последняя камера / last", "#" + String((unsigned)g.last_idx) + ", лимит " + String(g.last_lim) + ", с " + String(g.last_dist_m) + " м, v=" + String(g.last_spd));
+    if (g.lat_e6 || g.lon_e6) row("Последняя позиция / last fix", String(g.lat_e6 / 1e6, 5) + ", " + String(g.lon_e6 / 1e6, 5));
+    row("Макс. скорость / max speed", String(g.max_spd) + " км/ч");
+    row("Память / free", "RAM " + String((unsigned)(g.heap_free / 1024)) + " КБ, PSRAM " + String((unsigned)(g.psram_free / 1024)) + " КБ");
+    s += "</table>";
+    return s;
+}
+
 static void on_cams_upload()
 {
     HTTPUpload &u = s_srv->upload();
@@ -278,6 +314,7 @@ static void ota_task(void *)
         String p = FPSTR(PAGE);
         p.replace("%INFO%", String("build ") + __DATE__ + " " + __TIME__ + " · free " + String(ESP.getFreeSketchSpace() / 1024) + " KB");
         p.replace("%CAMS%", cams_file_status());
+        p.replace("%DIAG%", diag_html());
         s_srv->send(200, "text/html; charset=utf-8", p);
     });
     s_srv->on("/update", HTTP_POST, on_done, on_upload);
