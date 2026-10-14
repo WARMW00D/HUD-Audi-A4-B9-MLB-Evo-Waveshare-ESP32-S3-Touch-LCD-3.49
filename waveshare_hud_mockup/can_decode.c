@@ -611,6 +611,7 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
         s_data.sign_raw3     = sig(d, 27, 8);
         s_data.sign_sup2     = sig(d, 10, 1);
         s_data.sign_sup3     = sig(d, 9, 1);
+        s_data.tsr_hint      = sig(d, 2, 3);
         touch(S_SIGN);
         break;
     case 0x397: /* LDW_02 */

@@ -275,6 +275,40 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
 #define DG_OFF 0x444444
 static lv_obj_t *dg_dot, *dg_cc, *dg_src, *dg_bar[3], *dg_home, *dg_gps;
 
+#if HUD_TSR_STATE
+#define C_TSR_BLUE   0x1e78ff
+#define C_TSR_GREEN  0x00c800
+#define C_TSR_RED    0xe60000
+#define TSR_SZ       5
+static lv_obj_t *tsr_row[TSR_SZ];       /* уголок 5x5: строки шириной 5..1, прямой угол слева сверху */
+
+static void tsr_build(lv_obj_t *scr)
+{
+    for (int i = 0; i < TSR_SZ; i++) {
+        lv_obj_t *o = lv_obj_create(scr);
+        lv_obj_set_size(o, TSR_SZ - i, 1); lv_obj_set_pos(o, 0, i);
+        lv_obj_set_style_radius(o, 0, 0);
+        lv_obj_set_style_border_width(o, 0, 0);
+        lv_obj_set_style_pad_all(o, 0, 0);
+        lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(o, lv_color_hex(C_TSR_BLUE), 0);
+        lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+        tsr_row[i] = o;
+    }
+}
+
+static void tsr_update(const HudData *d, bool vze_on)
+{
+    bool show = vze_on && (d->valid & V_SIGN) && (d->tsr_hint == 0 || d->tsr_hint == 3 || d->tsr_hint == 5);
+    uint32_t col = d->tsr_hint == 3 ? C_TSR_GREEN : d->tsr_hint == 5 ? C_TSR_RED : C_TSR_BLUE;
+    for (int i = 0; i < TSR_SZ; i++) {
+        if (show) set_bg_color(tsr_row[i], col);
+        vis(tsr_row[i], show);
+    }
+}
+#endif
+
 static void diag_build(lv_obj_t *scr)
 {
     dg_dot = lv_obj_create(scr);
@@ -864,6 +898,10 @@ static void hud_update_cb(lv_timer_t *t)
             vis(spd_outline[i], opa > 0);
         }
     }
+
+#if HUD_TSR_STATE
+    tsr_update(&d, g_vze);
+#endif
 
     /* --- мигалки --- */
     bool bv  = d.valid & V_BLINK;
@@ -1858,6 +1896,10 @@ void build_hud_mockup(void)
     lv_obj_set_style_text_color(route_lbl, lv_color_white(), 0);
     lv_obj_set_pos(route_lbl, LX + 25, 126);
     lv_obj_add_flag(route_lbl, LV_OBJ_FLAG_HIDDEN);
+
+#if HUD_TSR_STATE
+    tsr_build(scr);
+#endif
 
     /* Статус связи — под стрелкой, виден только без связи */
     pair_lbl = lv_label_create(scr);
