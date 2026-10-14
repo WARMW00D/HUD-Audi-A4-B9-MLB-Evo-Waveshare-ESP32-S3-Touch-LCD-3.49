@@ -14,6 +14,9 @@ DIRECTION в iGo повёрнут на 180° относительно «напр
 Дополнительно можно подмешать базу Datakam (speedcam_*.bin): её записи кодов 510 и 760 добавляются,
 только если рядом (≤ 30 м) в основной базе нет записи того же типа. Формат Datakam: docs/cams_format.md.
 
+Также читает 7Ways+ extended+ (openSpeedcam.net, 9 колонок `IDX,X,Y,TYPE,SPEED,DirType,Direction,Distance,Angle`),
+формат определяется автоматически; берутся только камеры (W7_TYPES), Direction 0/360 = без направления.
+
 Формат выхода cams.bin — docs/cams_format.md.
 
 Запуск:
@@ -26,6 +29,11 @@ import struct, sys, re, os, math, argparse, time
 CELL = 20                                   # ячеек на градус (0.05°)
 DK_CODES = [510, 530, 700, 710, 720, 730, 740, 750, 760]   # индексы 0..8 (как у Datakam)
 IGO_TYPES = {192: 0, 194: 0, 206: 8, 68: 1, 193: 9, 199: 10}  # iGo TYPE -> индекс типа в cams.bin
+# 7Ways+ (openSpeedcam.net) -> индекс типа. Только камеры; знаки, переходы, лежачие и пр. не берём.
+# 192/194 стационарная/красный свет, 68 камера на светофоре, 215 пост ДПС, 193/209 мобильная,
+# 227 начало средней скорости, 199 камера полосы (автобусной).
+W7_TYPES = {192: 0, 194: 0, 68: 1, 215: 8, 193: 9, 209: 9, 227: 12, 199: 11}
+W7_DIR_OFFSET = 0       # поворот Direction (град.); полярность 7Ways не проверена на местности
 MERGE_M = 30.0
 
 
@@ -49,6 +57,33 @@ def read_igo(path):
     return out, int('%02d%02d%02d' % (d.tm_mday, d.tm_mon, d.tm_year % 100)), n
 
 
+def read_7ways(path):
+    """7Ways+ extended+: IDX,X,Y,TYPE,SPEED,DirType,Direction,Distance,Angle (9 колонок)."""
+    out, n = [], 0
+    date = 0
+    with open(path, encoding='utf-8', errors='ignore') as f:
+        for line in f:
+            if line.startswith('IDX'):
+                m = re.search(r'(\d\d)\.(\d\d)\.(\d{4})', line)
+                if m: date = int(m.group(1) + m.group(2) + m.group(3)[2:])
+                continue
+            p = line.strip().split(',')
+            if len(p) != 9: continue
+            n += 1
+            try:
+                lon, lat = float(p[1]), float(p[2])
+                t, lim, dtype, d = int(p[3]), int(p[4]), int(p[5]), int(p[6])
+            except ValueError:
+                continue
+            if t not in W7_TYPES: continue
+            hd = None if (dtype == 0 or d <= 0 or d >= 360) else (d + W7_DIR_OFFSET) % 360
+            out.append((lat, lon, hd, min(max(lim, 0), 255), W7_TYPES[t], 0))
+    if not date:
+        d = time.localtime(os.path.getmtime(path))
+        date = int('%02d%02d%02d' % (d.tm_mday, d.tm_mon, d.tm_year % 100))
+    return out, date, n
+
+
 def read_datakam(path):
     b = open(path, 'rb').read()
     m = re.search(r'(\d\d)\.(\d\d)\.(\d\d)', b[:64].decode('cp1251', 'ignore'))
@@ -69,6 +104,16 @@ def is_igo(path):
     with open(path, 'rb') as f: return f.read(4) in (b'IDX,', b'\xef\xbb\xbf')
 
 
+def is_7ways(path):
+    with open(path, encoding='utf-8-sig', errors='ignore') as f:
+        return f.readline().startswith('IDX') and f.readline().count(',') == 8
+
+
+def read_any(path):
+    if is_7ways(path): return read_7ways(path)
+    return read_igo(path) if is_igo(path) else read_datakam(path)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('inputs', nargs='+', help='iGo-ext CSV (основной), затем, при желании, speedcam_*.bin Datakam')
@@ -79,7 +124,7 @@ def main():
     recs, date, total = [], 0, 0
     grid = {}                                   # для проверки «рядом уже есть» при подмешивании
     for k, path in enumerate(a.inputs):
-        rows, d, n = read_igo(path) if is_igo(path) else read_datakam(path)
+        rows, d, n = read_any(path)
         total += n; date = date or d
         added = 0
         for r in rows:
@@ -101,7 +146,8 @@ def main():
             recs.append(r); added += 1
             grid.setdefault((int(lon * 100), int(lat * 100)), []).append(r)
         print(f'{path}: {added} записей добавлено из {n}')
-    recs.sort(key=lambda r: (int(r[0] * CELL), int(r[1] * CELL)))
+    f32 = lambda v: struct.unpack('<f', struct.pack('<f', v))[0]     # ключ считается по float32, как в файле
+    recs.sort(key=lambda r: (int(f32(r[0]) * CELL), int(f32(r[1]) * CELL)))
     with open(a.out, 'wb') as f:
         f.write(b'CAM1' + struct.pack('<III', len(recs), date, 0))
         for r in recs:
