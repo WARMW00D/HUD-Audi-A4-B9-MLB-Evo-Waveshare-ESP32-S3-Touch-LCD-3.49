@@ -270,11 +270,6 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
 }
 #endif
 
-#if HUD_PSD_DIAG
-/* ---------- диагностика привязки к карте (HUD_PSD_DIAG), под знаком ---------- */
-#define DG_OFF 0x444444
-static lv_obj_t *dg_dot, *dg_cc, *dg_src, *dg_bar[3], *dg_home, *dg_gps;
-
 #if HUD_TSR_STATE
 #define C_TSR_BLUE   0x1e78ff
 #define C_TSR_GREEN  0x00c800
@@ -308,6 +303,12 @@ static void tsr_update(const HudData *d, bool vze_on)
     }
 }
 #endif
+
+#if HUD_PSD_DIAG
+/* ---------- диагностика привязки к карте (HUD_PSD_DIAG), под знаком ---------- */
+#define DG_OFF 0x444444
+static lv_obj_t *dg_dot, *dg_cc, *dg_src, *dg_bar[3], *dg_home, *dg_gps;
+
 
 static void diag_build(lv_obj_t *scr)
 {
