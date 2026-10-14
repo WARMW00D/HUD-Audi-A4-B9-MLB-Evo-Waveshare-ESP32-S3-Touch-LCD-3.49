@@ -276,6 +276,10 @@ If you use the BLE source with pairing, first copy `waveshare_hud_mockup/secrets
 
 The Wi-Fi password is `HUD_OTA_PASS` from `secrets.h` (default `hud12345` — change it). In update mode CAN, BLE and sound are off, so it is only for the parked car. An interrupted upload does not break anything: the new image becomes active only after it is fully written, the old firmware stays. A wrong file (not a firmware image) is rejected by the updater.
 
+### Logs from the SD card (on the same page)
+
+If the board's SD card holds logs (`HUD_LOG_TO_SD 1`, `/logs/YYYY-MM-DD/log_HH_N.txt`), the update page has a **Logs** link (`http://192.168.4.1/logs`), the same way as on the sniffer portal: folders by date (newest first), expand a folder to see its files and sizes. A single file downloads by its link; tick folders and press **Download TAR** to get them as one archive, or **Delete selected** to remove the ticked folders with everything in them (with a confirmation, cannot be undone). The card is mounted by the page itself, so logging does not have to be on at that moment. Only paths of the form `/logs/YYYY-MM-DD[/file]` are accepted. Downloading keeps the update-mode timeout from running out.
+
 ### Camera database (`cams.bin`)
 
 1. Download the camera list from speedcamonline.ru, iGo extended without mobile units (`https://speedcamonline.ru/igoext/Rus/nomobile/`, a CSV; check that the download was not cut off) and convert it: `python3 tools/gen_cams.py igo.csv -o cams.bin`. A Datakam base (`speedcam_*.bin`) can be added after it as a supplement: `python3 tools/gen_cams.py igo.csv speedcam_D6.bin -o cams.bin`. Optional `--bbox lat0 lon0 lat1 lon1` cuts a region. The format and the type codes found so far are described in [docs/cams_format.md](docs/cams_format.md).
@@ -719,6 +723,7 @@ several times (noting the times), then look for bits that change at those moment
     ├── hud_sound.c/.h             sound: ES8311 + I2S, own task, sound queue
     ├── hud_log.cpp/.h             log: Serial + file on the SD card
     ├── hud_ota.cpp/.h             OTA: BOOT button, Wi-Fi access point, upload page
+    ├── hud_ota_logs.cpp/.h        update page: list, download (file / TAR) and delete SD logs
     ├── hud_light.cpp/.h           photoresistor on GPIO5: ADC, calibration, lux estimate
     ├── hud_settings.cpp           menu settings in flash (NVS)
     ├── hud_sounds.c/.h            PCM sounds at 22050 Hz (generated)

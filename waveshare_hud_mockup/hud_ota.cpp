@@ -18,6 +18,7 @@
 #include "hud_log.h"
 #include "hud_sound.h"
 #include "hud_ota.h"
+#include "hud_ota_logs.h"
 extern "C" {
 #include "hud_sounds.h"
 }
@@ -111,7 +112,7 @@ static const char PAGE[] PROGMEM = R"HTML(<!doctype html><html><head><meta chars
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>HUD update</title>
 <style>body{font-family:sans-serif;max-width:480px;margin:24px auto;padding:0 16px;background:#111;color:#eee}
 h1{font-size:20px}input,button{font-size:16px;margin:8px 0}button{padding:10px 18px}
-progress{width:100%;height:20px}#m{margin-top:12px;min-height:24px}small{color:#999}</style></head><body>
+progress{width:100%;height:20px}#m{margin-top:12px;min-height:24px}small{color:#999}a{color:#6cf}</style></head><body>
 <h1>HUD — обновление прошивки / firmware update</h1>
 <p><small>%INFO%</small></p>
 <input type="file" id="f" accept=".bin"><br>
@@ -122,6 +123,8 @@ progress{width:100%;height:20px}#m{margin-top:12px;min-height:24px}small{color:#
 <input type="file" id="g" accept=".bin"><br>
 <button id="c" onclick="upc()">Загрузить базу / Upload database</button>
 <progress id="q" value="0" max="100" style="display:none"></progress><div id="n"></div>
+<hr><h1>Журналы / Logs</h1>
+<p><a href="/logs">Открыть журналы с SD-карты / Open logs from the SD card</a></p>
 <script>
 function upc(){var f=document.getElementById('g').files[0],m=document.getElementById('n'),p=document.getElementById('q');
 if(!f){m.textContent='Выберите cams.bin / choose cams.bin';return}
@@ -249,6 +252,8 @@ static void on_done()
     }
 }
 
+static void touch_timeout(void) { s_t0 = millis(); }          /* запрос или долгая отдача файла — таймаут режима не идёт */
+
 static void ota_task(void *)
 {
     s_srv = new WebServer(80);
@@ -259,6 +264,7 @@ static void ota_task(void *)
     });
     s_srv->on("/update", HTTP_POST, on_done, on_upload);
     s_srv->on("/cams", HTTP_POST, on_cams_done, on_cams_upload);
+    hud_ota_logs_attach(*s_srv, touch_timeout);                  /* /logs, /download, /download-tar, /delete */
     s_srv->onNotFound([]() { s_srv->sendHeader("Location", "/"); s_srv->send(302); });   /* captive-подобный редирект */
     s_srv->begin();
     s_t0 = millis();
