@@ -288,7 +288,7 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
 #endif
 
 #if HUD_TSR_STATE
-#define C_TSR_BLUE   0x1e78ff
+#define C_TSR_YELLOW 0xffcc00
 #define C_TSR_GREEN  0x00c800
 #define C_TSR_RED    0xe60000
 #define TSR_SZ       5
@@ -303,7 +303,7 @@ static void tsr_build(lv_obj_t *scr)
         lv_obj_set_style_border_width(o, 0, 0);
         lv_obj_set_style_pad_all(o, 0, 0);
         lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(o, lv_color_hex(C_TSR_BLUE), 0);
+        lv_obj_set_style_bg_color(o, lv_color_hex(C_TSR_YELLOW), 0);
         lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
         tsr_row[i] = o;
@@ -313,7 +313,7 @@ static void tsr_build(lv_obj_t *scr)
 static void tsr_update(const HudData *d, bool vze_on)
 {
     bool show = vze_on && (d->valid & V_SIGN) && (d->tsr_hint == 0 || d->tsr_hint == 3 || d->tsr_hint == 5);
-    uint32_t col = d->tsr_hint == 3 ? C_TSR_GREEN : d->tsr_hint == 5 ? C_TSR_RED : C_TSR_BLUE;
+    uint32_t col = d->tsr_hint == 3 ? C_TSR_GREEN : d->tsr_hint == 5 ? C_TSR_RED : C_TSR_YELLOW;
     for (int i = 0; i < TSR_SZ; i++) {
         if (show) set_bg_color(tsr_row[i], col);
         vis(tsr_row[i], show);
