@@ -120,6 +120,7 @@ progress{width:100%;height:20px}#m{margin-top:12px;min-height:24px}small{color:#
 <progress id="p" value="0" max="100" style="display:none"></progress><div id="m"></div>
 <hr><h1>База камер / camera database</h1>
 <p><small>cams.bin (tools/gen_cams.py)</small></p>
+<p>Состояние / status: <b>%CAMS%</b></p>
 <input type="file" id="g" accept=".bin"><br>
 <button id="c" onclick="upc()">Загрузить базу / Upload database</button>
 <progress id="q" value="0" max="100" style="display:none"></progress><div id="n"></div>
@@ -193,6 +194,22 @@ static void cam_fail(const char *why)
     s_cam_started = false;
 }
 
+/* что лежит в /cams.bin во флеше (для страницы портала) */
+static String cams_file_status()
+{
+    if (!FFat.begin(false)) return "раздел FATFS не смонтирован / FATFS not mounted";
+    File f = FFat.open("/cams.bin", "r");
+    if (!f) { FFat.end(); return "файла нет / no file"; }
+    uint32_t h[4] = {0};
+    size_t sz = f.size();
+    bool rd = f.read((uint8_t *)h, 16) == 16;
+    f.close(); FFat.end();
+    if (!rd || memcmp(h, "CAM1", 4) != 0) return "файл повреждён (нет CAM1) / bad file, size " + String((unsigned)sz);
+    if (sz != 16 + (size_t)h[1] * 12) return "размер не сходится с заголовком / size mismatch, " + String((unsigned)sz);
+    char b[24]; snprintf(b, sizeof b, "%06u", (unsigned)h[2]);
+    return String("в флеше: ") + String((unsigned)h[1]) + " камер, от " + b + ", " + String((unsigned)(sz / 1024)) + " КБ / in flash";
+}
+
 static void on_cams_upload()
 {
     HTTPUpload &u = s_srv->upload();
@@ -260,6 +277,7 @@ static void ota_task(void *)
     s_srv->on("/", HTTP_GET, []() {
         String p = FPSTR(PAGE);
         p.replace("%INFO%", String("build ") + __DATE__ + " " + __TIME__ + " · free " + String(ESP.getFreeSketchSpace() / 1024) + " KB");
+        p.replace("%CAMS%", cams_file_status());
         s_srv->send(200, "text/html; charset=utf-8", p);
     });
     s_srv->on("/update", HTTP_POST, on_done, on_upload);
