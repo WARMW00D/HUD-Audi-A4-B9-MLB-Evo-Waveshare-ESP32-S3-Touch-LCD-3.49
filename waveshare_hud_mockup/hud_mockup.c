@@ -811,7 +811,7 @@ static void hud_update_cb(lv_timer_t *t)
 #endif
     }
     if (smode != SIGN_HIDE) {
-        bool warn_ph = d.sign_warn && (now % 500) < 250;
+        bool warn_ph = HUD_SIGN_WARN_FLASH && d.sign_warn && (now % 500) < 250;
         set_bg_color(sign_obj, warn_ph ? C_SIGN_WARN : 0xffffff);
         set_border_color(sign_obj, (smode == SIGN_LIMIT || smode == SIGN_NOOVT) ? C_SIGN_RED : C_GRAY);
         vis(sign_end_line, smode == SIGN_END);
