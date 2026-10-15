@@ -205,31 +205,42 @@ static volatile uint8_t g_units, g_tol;   /* определены ниже (tent
 static volatile bool g_cams_on, g_cam_beep;
 #if HUD_CAMS
 static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y, uint32_t col);
-static lv_obj_t *cm_disc, *cm_lim, *cm_dist, *cm_eye;
+static lv_obj_t *cm_sq, *cm_disc, *cm_lim, *cm_dist, *cm_eye;
 
+/* Знак камеры — на месте обычного знака, того же размера (64 px), самый приоритетный:
+   круглый знак ограничения (Ø52, кольцо 6) на жёлтом квадрате, под ним значок камеры со вспышкой и расстояние. */
 static void cams_build(lv_obj_t *scr)
 {
-    cm_dist = lv_label_create(scr);  lv_label_set_text(cm_dist, "");
-    lv_obj_set_style_text_font(cm_dist, LV_FONT_DEFAULT, 0);
-    lv_obj_set_style_text_color(cm_dist, lv_color_hex(C_YELLOW), 0);
-    lv_obj_set_pos(cm_dist, 3, 69);
+    cm_sq = lv_obj_create(scr);
+    lv_obj_set_size(cm_sq, SIGN_D, SIGN_D); lv_obj_set_pos(cm_sq, 1, 2);
+    lv_obj_set_style_radius(cm_sq, 6, 0);
+    lv_obj_set_style_bg_color(cm_sq, lv_color_hex(C_YELLOW), 0);
+    lv_obj_set_style_border_width(cm_sq, 0, 0);
+    lv_obj_set_style_pad_all(cm_sq, 0, 0);
+    lv_obj_clear_flag(cm_sq, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
 
-    cm_disc = lv_obj_create(scr);                       /* знак ограничения камеры */
-    lv_obj_set_size(cm_disc, 32, 32); lv_obj_set_pos(cm_disc, 2, 86);
+    cm_disc = lv_obj_create(cm_sq);                     /* круглый знак ограничения камеры */
+    lv_obj_set_size(cm_disc, 52, 52); lv_obj_set_pos(cm_disc, 6, 6);
     lv_obj_set_style_radius(cm_disc, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(cm_disc, lv_color_white(), 0);
     lv_obj_set_style_border_color(cm_disc, lv_color_hex(C_SIGN_RED), 0);
-    lv_obj_set_style_border_width(cm_disc, 3, 0);
+    lv_obj_set_style_border_width(cm_disc, 6, 0);
     lv_obj_set_style_pad_all(cm_disc, 0, 0);
-    lv_obj_clear_flag(cm_disc, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(cm_disc, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     cm_lim = lv_label_create(cm_disc);  lv_label_set_text(cm_lim, "");
-    lv_obj_set_style_text_font(cm_lim, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_text_font(cm_lim, &hud_font_sign2, 0);
     lv_obj_set_style_text_color(cm_lim, lv_color_black(), 0);
     lv_obj_center(cm_lim);
 
-    cm_eye = car_img(scr, &img_cam_icon, 38, 88, C_YELLOW);   /* значок камеры */
+    cm_eye = car_img(scr, &img_cam_icon, 14, 72, C_YELLOW);   /* значок камеры со вспышкой */
 
-    lv_obj_add_flag(cm_dist, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cm_disc, LV_OBJ_FLAG_HIDDEN);
+    cm_dist = lv_label_create(scr);  lv_label_set_text(cm_dist, "");
+    lv_obj_set_style_text_font(cm_dist, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_text_color(cm_dist, lv_color_hex(C_YELLOW), 0);
+    lv_obj_set_style_text_align(cm_dist, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(cm_dist, SIGN_D + 2); lv_obj_set_pos(cm_dist, 0, 106);
+
+    lv_obj_add_flag(cm_sq, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cm_dist, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(cm_eye, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -259,7 +270,8 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
     }
 
     g_cam_active = hit;
-    vis(cm_disc, hit); vis(cm_dist, hit); vis(cm_eye, hit);
+    vis(cm_sq, hit); vis(cm_dist, hit); vis(cm_eye, hit);
+    if (hit) vis(sign_obj, false);                      /* знак камеры приоритетнее обычного знака */
     if (!hit) return false;
 
     char b[16];
@@ -267,6 +279,7 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
     else                         snprintf(b, sizeof b, "%d m",  (int)(h.dist_m / 10) * 10);
     set_text(cm_dist, b);
     if (h.limit) snprintf(b, sizeof b, "%u", h.limit); else snprintf(b, sizeof b, "?");
+    set_font(cm_lim, h.limit >= 100 ? &hud_font_sign3 : &hud_font_sign2);
     set_text(cm_lim, b); lv_obj_center(cm_lim);
 
     bool over = h.limit && d->speed_kmh > h.limit + g_tol;
