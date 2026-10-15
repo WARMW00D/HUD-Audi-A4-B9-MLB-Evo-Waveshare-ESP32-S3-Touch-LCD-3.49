@@ -291,33 +291,43 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
 #define C_TSR_YELLOW 0xffcc00
 #define C_TSR_GREEN  0x00c800
 #define C_TSR_RED    0xe60000
-#define TSR_SZ       5
-static lv_obj_t *tsr_row[TSR_SZ];       /* уголок 5x5: строки шириной 5..1, прямой угол слева сверху */
+#define TSR_D        10                  /* диаметр кружка, px */
+static lv_obj_t *tsr_dot;               /* заполненный кружок в верхней строке: между «сколько заправить» и передачей */
 
 static void tsr_build(lv_obj_t *scr)
 {
-    for (int i = 0; i < TSR_SZ; i++) {
-        lv_obj_t *o = lv_obj_create(scr);
-        lv_obj_set_size(o, TSR_SZ - i, 1); lv_obj_set_pos(o, 0, i);
-        lv_obj_set_style_radius(o, 0, 0);
-        lv_obj_set_style_border_width(o, 0, 0);
-        lv_obj_set_style_pad_all(o, 0, 0);
-        lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(o, lv_color_hex(C_TSR_YELLOW), 0);
-        lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
-        tsr_row[i] = o;
-    }
+    tsr_dot = lv_obj_create(scr);
+    lv_obj_remove_style_all(tsr_dot);
+    lv_obj_set_size(tsr_dot, TSR_D, TSR_D);
+    lv_obj_set_pos(tsr_dot, 520 - TSR_D / 2, 11 - TSR_D / 2);
+    lv_obj_set_style_radius(tsr_dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(tsr_dot, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(tsr_dot, lv_color_hex(C_TSR_YELLOW), 0);
+    lv_obj_clear_flag(tsr_dot, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(tsr_dot, LV_OBJ_FLAG_HIDDEN);
+}
+
+static int tsr_text_w(lv_obj_t *l, const lv_font_t *f)
+{
+    lv_point_t p = {0, 0};
+    lv_txt_get_size(&p, lv_label_get_text(l), f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return p.x;
 }
 
 static void tsr_update(const HudData *d, bool vze_on)
 {
     bool show = vze_on && (d->valid & V_SIGN) && (d->tsr_hint == 0 || d->tsr_hint == 3 || d->tsr_hint == 5);
-    uint32_t col = d->tsr_hint == 3 ? C_TSR_GREEN : d->tsr_hint == 5 ? C_TSR_RED : C_TSR_YELLOW;
-    for (int i = 0; i < TSR_SZ; i++) {
-        if (show) set_bg_color(tsr_row[i], col);
-        vis(tsr_row[i], show);
+    if (show) {
+        uint32_t col = d->tsr_hint == 3 ? C_TSR_GREEN : d->tsr_hint == 5 ? C_TSR_RED : C_TSR_YELLOW;
+        set_bg_color(tsr_dot, col);
+        /* по центру между правым краем «сколько заправить» и левым краем передачи (если их нет — края зоны 376..626) */
+        int left  = 376, right = 626;
+        if (!lv_obj_has_flag(tank_lbl, LV_OBJ_FLAG_HIDDEN)) left = 396 + tsr_text_w(tank_lbl, &hud_font_fuel);
+        if (!lv_obj_has_flag(gear_lbl, LV_OBJ_FLAG_HIDDEN)) right = 626 - tsr_text_w(gear_lbl, &hud_font_gear);
+        int cx = (left + right) / 2;
+        if (lv_obj_get_x(tsr_dot) != cx - TSR_D / 2) lv_obj_set_x(tsr_dot, cx - TSR_D / 2);
     }
+    vis(tsr_dot, show);
 }
 #endif
 
