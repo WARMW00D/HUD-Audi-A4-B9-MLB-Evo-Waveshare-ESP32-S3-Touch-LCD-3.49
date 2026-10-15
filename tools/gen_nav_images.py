@@ -105,7 +105,7 @@ def img_turn(sector):
     v = vec(ang)
     # дорога: прямо через перекрёсток + выбранное направление
     line(d, [(CX, BY + 6), (CX, 4)], ROAD_W, ROAD_A)
-    Lr = min(fit_len(CX, JY, v, 0), 70)
+    Lr = fit_len(CX, JY, v, 0) + ROAD_W      # конец уходит за край холста — срез прямой, как у вертикальной ветки
     line(d, [(CX, JY), (CX + v[0] * Lr, JY + v[1] * Lr)], ROAD_W, ROAD_A)
     if sector == 0:
         arrow_path(d, [(CX, BY), (CX, 8)])
@@ -166,7 +166,8 @@ def img_roundabout(sector):
     v = vec(ang)
     ex0 = (rc[0] + v[0] * R, rc[1] + v[1] * R)
     Le = min(fit_len(ex0[0], ex0[1], v), 30)
-    line(d, [ex0, (ex0[0] + v[0] * (Le + 6), ex0[1] + v[1] * (Le + 6))], ROAD_W, ROAD_A)
+    Lx = fit_len(ex0[0], ex0[1], v, 0) + ROAD_W      # за край холста — прямой срез
+    line(d, [ex0, (ex0[0] + v[0] * Lx, ex0[1] + v[1] * Lx)], ROAD_W, ROAD_A)
     # путь стрелки: въезд снизу, по кольцу против часовой (визуально), съезд
     entry = (CX, rc[1] + R)
     d.line(P([(CX, BY), entry]), fill=ARROW_A, width=int(ARROW_W * S))
