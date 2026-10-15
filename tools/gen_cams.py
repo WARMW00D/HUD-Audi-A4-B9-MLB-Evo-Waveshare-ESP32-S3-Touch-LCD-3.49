@@ -33,7 +33,8 @@ IGO_TYPES = {192: 0, 194: 0, 206: 8, 68: 1, 193: 9, 199: 10}  # iGo TYPE -> ин
 # 7Ways+ (openSpeedcam.net) -> индекс типа. Только камеры; знаки, переходы, лежачие и пр. не берём.
 # 192/194 стационарная/красный свет, 68 камера на светофоре, 215 пост ДПС, 193/209 мобильная,
 # 227 начало средней скорости, 199 камера полосы (автобусной).
-W7_TYPES = {192: 0, 194: 0, 68: 1, 215: 8, 193: 9, 209: 9, 227: 12, 199: 11}
+W7_TYPES = {192: 0, 194: 0, 68: 1, 215: 8, 193: 9, 209: 9, 227: 12, 199: 11, 12: 0, 203: 0}
+W7_FLAG = {12: 1, 203: 2}      # признак в cams.bin (биты 4..5): 1 — камера скорости «сзади» (12), 2 — светофор + скорость (203)
 W7_DIR_OFFSET = 0       # поворот Direction (град.); полярность 7Ways не проверена на местности
 MERGE_M = 30.0
 
@@ -77,8 +78,14 @@ def read_7ways(path):
             except ValueError:
                 continue
             if t not in W7_TYPES: continue
-            hd = None if (dtype == 0 or d <= 0 or d >= 360) else (d + W7_DIR_OFFSET) % 360
-            out.append((lat, lon, hd, min(max(lim, 0), 255), W7_TYPES[t], 0))
+            lim = min(max(lim, 0), 255); fl = W7_FLAG.get(t, 0)
+            if dtype == 0 or d <= 0 or d >= 360:
+                out.append((lat, lon, None, lim, W7_TYPES[t], fl))
+            else:
+                hd = (d + W7_DIR_OFFSET) % 360
+                out.append((lat, lon, hd, lim, W7_TYPES[t], fl))
+                if dtype == 2:                                  # DirType 2 — в обе стороны: вторая запись на обратный курс
+                    out.append((lat, lon, (hd + 180) % 360, lim, W7_TYPES[t], fl))
     if not date:
         d = time.localtime(os.path.getmtime(path))
         date = int('%02d%02d%02d' % (d.tm_mday, d.tm_mon, d.tm_year % 100))
