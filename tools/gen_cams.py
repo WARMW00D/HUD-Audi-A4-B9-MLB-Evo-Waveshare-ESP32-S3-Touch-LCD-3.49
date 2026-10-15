@@ -22,7 +22,8 @@ DIRECTION в iGo повёрнут на 180° относительно «напр
 Запуск:
   python3 gen_cams.py igo.csv                        # -> cams.bin
   python3 gen_cams.py igo.csv speedcam_D6.bin -o cams.bin --bbox 55.0 36.5 56.3 38.5
-Формат входа определяется по содержимому. Первый файл — основной, остальные — дополнение.
+Формат входа определяется по содержимому. iGo / 7Ways+ файлы (например, RU + BY) объединяются целиком, дубли ближе 10 м
+того же типа отбрасываются; Datakam (.bin) — только дополнение (коды 510 и 760, см. выше).
 """
 import struct, sys, re, os, math, argparse, time
 
@@ -116,7 +117,7 @@ def read_any(path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('inputs', nargs='+', help='iGo-ext CSV (основной), затем, при желании, speedcam_*.bin Datakam')
+    ap.add_argument('inputs', nargs='+', help='iGo-ext / 7Ways+ файлы (можно несколько стран), затем, при желании, speedcam_*.bin Datakam')
     ap.add_argument('-o', '--out', default='cams.bin')
     ap.add_argument('--bbox', nargs=4, type=float, metavar=('LAT0', 'LON0', 'LAT1', 'LON1'))
     a = ap.parse_args()
@@ -124,6 +125,7 @@ def main():
     recs, date, total = [], 0, 0
     grid = {}                                   # для проверки «рядом уже есть» при подмешивании
     for k, path in enumerate(a.inputs):
+        dk = not is_7ways(path) and not is_igo(path)            # Datakam — только дополнение; iGo / 7Ways+ — полноценные источники
         rows, d, n = read_any(path)
         total += n; date = date or d
         added = 0
@@ -132,7 +134,8 @@ def main():
             if not (19 < lon < 180 and 40 < lat < 82): continue
             if a.bbox and not (a.bbox[0] <= lat <= a.bbox[2] and a.bbox[1] <= lon <= a.bbox[3]): continue
             if k > 0:
-                if r[4] not in (0, 8): continue                 # из Datakam берём только 510 и 760
+                if dk and r[4] not in (0, 8): continue          # из Datakam берём только 510 и 760
+                merge_m = MERGE_M if dk else 10.0               # iGo / 7Ways+ (например, RU + BY): отбрасываем лишь дубли в 10 м
                 cx, cy = int(lon * 100), int(lat * 100)         # ячейка ~1 км
                 dup = False
                 for dx in (-1, 0, 1):
@@ -141,7 +144,7 @@ def main():
                             if q[4] == r[4]:
                                 dy_m = (q[0] - lat) * 111200
                                 dx_m = (q[1] - lon) * 111200 * math.cos(math.radians(lat))
-                                if dx_m * dx_m + dy_m * dy_m <= MERGE_M ** 2: dup = True
+                                if dx_m * dx_m + dy_m * dy_m <= merge_m ** 2: dup = True
                 if dup: continue
             recs.append(r); added += 1
             grid.setdefault((int(lon * 100), int(lat * 100)), []).append(r)
