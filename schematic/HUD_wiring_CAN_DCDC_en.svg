@@ -56,7 +56,7 @@
   <text x="662" y="165" class="t" dy="4">GND</text>
   <text x="662" y="290" class="t" dy="4">3V3</text>
   <text x="662" y="440" class="t" dy="4">GPIO1 (RX)</text>
-  <text x="662" y="480" class="t" dy="4">GPIO2 (unused)</text>
+  <text x="662" y="480" class="t" dy="4">GPIO2 (TX)</text>
   <text x="785" y="190" class="s" text-anchor="middle">5 V — to USB-C or the board's 5 V pin</text>
   <circle cx="650" cy="110" r="5" class="pin"/><circle cx="650" cy="165" r="5" class="pin"/>
   <circle cx="650" cy="290" r="5" class="pin"/><circle cx="650" cy="440" r="5" class="pin"/><circle cx="650" cy="480" r="5" class="pin"/>
@@ -100,10 +100,8 @@
   <!-- RX -->
   <path class="w" stroke="#2563eb" d="M505 440 H645"/>
 
-  <!-- TX: do not connect -->
-  <path class="w" stroke="#b91c1c" stroke-dasharray="6 6" d="M505 480 H560"/>
-  <path stroke="#b91c1c" stroke-width="3.5" stroke-linecap="round" d="M565 472 L581 488 M581 472 L565 488"/>
-  <text x="515" y="466" class="nc">do not connect</text>
+  <!-- TX -->
+  <path class="w" stroke="#2563eb" d="M505 480 H645"/>
 
 
   <!-- ===== Light sensor (optional) ===== -->
@@ -122,8 +120,8 @@
   <!-- ===== Notes ===== -->
   <line x1="20" y1="540" x2="920" y2="540" stroke="#cbd5e1"/>
   <text x="20" y="566" class="t"><tspan font-weight="bold">Wire colours:</tspan>
-    <tspan fill="#dc2626">■</tspan> +12 V   <tspan fill="#f97316">■</tspan> +5 V   <tspan fill="#111827">■</tspan> ground   <tspan fill="#9333ea">■</tspan> 3.3 V   <tspan fill="#eab308">■</tspan> CAN-H   <tspan fill="#16a34a">■</tspan> CAN-L   <tspan fill="#2563eb">■</tspan> RX data   <tspan fill="#0891b2">■</tspan> light sensor signal</text>
-  <text x="20" y="592" class="s">• Receive only on RX (GPIO1): transmitting to the bus is ruled out — TX is not connected, SLNT is tied to 3V3 (silent), driver in LISTEN_ONLY.</text>
+    <tspan fill="#dc2626">■</tspan> +12 V   <tspan fill="#f97316">■</tspan> +5 V   <tspan fill="#111827">■</tspan> ground   <tspan fill="#9333ea">■</tspan> 3.3 V   <tspan fill="#eab308">■</tspan> CAN-H   <tspan fill="#16a34a">■</tspan> CAN-L   <tspan fill="#2563eb">■</tspan> RX / TX data   <tspan fill="#0891b2">■</tspan> light sensor signal</text>
+  <text x="20" y="592" class="s">• Receive only: TX goes to GPIO2, but transmitting to the bus is ruled out — SLNT is tied to 3V3 (silent), driver in LISTEN_ONLY.</text>
   <text x="20" y="612" class="s">• CAN Pal Termination switch is OFF: the car bus is already terminated.  • All grounds (DC-DC, CAN Pal, board, bus) are common.</text>
   <text x="20" y="632" class="s">• Take +12 V from an ignition-switched (ACC) line through a 1–2 A fuse; use an automotive DC-DC with current margin and surge protection.</text>
   <text x="20" y="652" class="s">• CAN Pal Vcc goes to the board's 3V3: the CAN Pal has its own 5 V charge pump for the transceiver and handles level matching.</text>

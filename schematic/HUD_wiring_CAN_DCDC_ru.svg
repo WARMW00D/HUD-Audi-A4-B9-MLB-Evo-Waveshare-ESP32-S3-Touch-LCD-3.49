@@ -56,7 +56,7 @@
   <text x="662" y="165" class="t" dy="4">GND</text>
   <text x="662" y="290" class="t" dy="4">3V3</text>
   <text x="662" y="440" class="t" dy="4">GPIO1 (RX)</text>
-  <text x="662" y="480" class="t" dy="4">GPIO2 (не исп.)</text>
+  <text x="662" y="480" class="t" dy="4">GPIO2 (TX)</text>
   <text x="785" y="190" class="s" text-anchor="middle">5 В — на USB-C или вывод 5 В платы</text>
   <circle cx="650" cy="110" r="5" class="pin"/><circle cx="650" cy="165" r="5" class="pin"/>
   <circle cx="650" cy="290" r="5" class="pin"/><circle cx="650" cy="440" r="5" class="pin"/><circle cx="650" cy="480" r="5" class="pin"/>
@@ -100,10 +100,8 @@
   <!-- RX -->
   <path class="w" stroke="#2563eb" d="M505 440 H645"/>
 
-  <!-- TX: не подключать -->
-  <path class="w" stroke="#b91c1c" stroke-dasharray="6 6" d="M505 480 H560"/>
-  <path stroke="#b91c1c" stroke-width="3.5" stroke-linecap="round" d="M565 472 L581 488 M581 472 L565 488"/>
-  <text x="515" y="466" class="nc">не подключать</text>
+  <!-- TX -->
+  <path class="w" stroke="#2563eb" d="M505 480 H645"/>
 
 
   <!-- ===== Light divider (optional) ===== -->
@@ -122,8 +120,8 @@
   <!-- ===== Примечания ===== -->
   <line x1="20" y1="540" x2="920" y2="540" stroke="#cbd5e1"/>
   <text x="20" y="566" class="t"><tspan font-weight="bold">Цвета проводов:</tspan>
-    <tspan fill="#dc2626">■</tspan> +12 В   <tspan fill="#f97316">■</tspan> +5 В   <tspan fill="#111827">■</tspan> масса   <tspan fill="#9333ea">■</tspan> 3,3 В   <tspan fill="#eab308">■</tspan> CAN-H   <tspan fill="#16a34a">■</tspan> CAN-L   <tspan fill="#2563eb">■</tspan> данные RX   <tspan fill="#0891b2">■</tspan> сигнал датчика света</text>
-  <text x="20" y="592" class="s">• Приём только на RX (GPIO1): передача в шину исключена — TX не подключён, SLNT на 3V3 (silent), драйвер в LISTEN_ONLY.</text>
+    <tspan fill="#dc2626">■</tspan> +12 В   <tspan fill="#f97316">■</tspan> +5 В   <tspan fill="#111827">■</tspan> масса   <tspan fill="#9333ea">■</tspan> 3,3 В   <tspan fill="#eab308">■</tspan> CAN-H   <tspan fill="#16a34a">■</tspan> CAN-L   <tspan fill="#2563eb">■</tspan> данные RX / TX   <tspan fill="#0891b2">■</tspan> сигнал датчика света</text>
+  <text x="20" y="592" class="s">• Только приём: TX идёт на GPIO2, но передача в шину исключена — SLNT на 3V3 (silent), драйвер в LISTEN_ONLY.</text>
   <text x="20" y="612" class="s">• Переключатель Termination на CAN Pal — OFF: шина в машине уже согласована.  • Все массы (DC-DC, CAN Pal, плата, шина) — общие.</text>
   <text x="20" y="632" class="s">• +12 В брать с линии под ключом (ACC) через предохранитель 1–2 А; DC-DC — автомобильный, с запасом по току и защитой от выбросов.</text>
   <text x="20" y="652" class="s">• Vcc CAN Pal — 3V3 платы: на CAN Pal есть собственный преобразователь до 5 В для трансивера и согласование уровней.</text>
