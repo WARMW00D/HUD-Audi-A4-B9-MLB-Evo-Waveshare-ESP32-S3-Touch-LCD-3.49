@@ -11,6 +11,13 @@
 #define CELL      20            /* ячеек на градус */
 #define M_PER_DEG 111320.0
 
+#ifndef CAM_REAR_AHEAD_S
+#define CAM_REAR_AHEAD_S 6.0f       /* камера «в спину» (признак 1): окно, секунд хода (в лицо — ahead_s) */
+#endif
+#ifndef CAM_REAR_MIN_M
+#define CAM_REAR_MIN_M   100.0f
+#endif
+
 typedef struct __attribute__((packed)) {
     float    lat, lon;
     uint16_t dir;
@@ -139,6 +146,12 @@ bool cam_query(uint32_t now_ms, double lat, double lon, float hdg_deg, float spe
                 double cross = ex * ch - ey * sh;
                 if (cross < 0) cross = -cross;
                 if (along <= 0 || along > R) continue;
+                if ((r->tf >> 4) == 1) {            /* снимает в спину: оповещаем позже */
+                    float Rr = speed_kmh / 3.6f * CAM_REAR_AHEAD_S;
+                    if (Rr < CAM_REAR_MIN_M) Rr = CAM_REAR_MIN_M;
+                    if (Rr > R) Rr = R;
+                    if (along > Rr) continue;
+                }
                 if (cross > (i == s_active ? s_cfg.cross_m * 1.7f : s_cfg.cross_m)) continue;
                 if (r->dir != 0xFFFF) {
                     float d = fabsf(fmodf((float)r->dir - hdg_deg + 540.0f, 360.0f) - 180.0f);
