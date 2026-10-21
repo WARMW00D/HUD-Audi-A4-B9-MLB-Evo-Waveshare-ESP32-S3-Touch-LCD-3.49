@@ -128,6 +128,7 @@ def main():
     ap.add_argument('-o', '--out', default='cams.bin')
     ap.add_argument('--bbox', nargs=4, type=float, metavar=('LAT0', 'LON0', 'LAT1', 'LON1'))
     ap.add_argument('--w7-dir-offset', type=int, default=None, metavar='DEG', help='поворот Direction 7Ways+ в градусах (по умолчанию 180; 0 — без поворота)')
+    ap.add_argument('--exclude', metavar='FILE', help='файл со списком ложных камер: «lat, lon [радиус_м]» в строке (по умолчанию 15 м), # — комментарий')
     a = ap.parse_args()
     if a.w7_dir_offset is not None:
         global W7_DIR_OFFSET
@@ -160,6 +161,15 @@ def main():
             recs.append(r); added += 1
             grid.setdefault((int(lon * 100), int(lat * 100)), []).append(r)
         print(f'{path}: {added} записей добавлено из {n}')
+    if a.exclude:
+        ex = []
+        for ln in open(a.exclude, encoding='utf-8'):
+            ln = ln.split('#')[0].replace(',', ' ').split()
+            if len(ln) >= 2: ex.append((float(ln[0]), float(ln[1]), float(ln[2]) if len(ln) > 2 else 15.0))
+        def bad(r):
+            return any(math.hypot((r[0] - la) * 111200, (r[1] - lo) * 111200 * math.cos(math.radians(la))) <= rad for la, lo, rad in ex)
+        n0 = len(recs); recs = [r for r in recs if not bad(r)]
+        print(f'исключено по {a.exclude}: {n0 - len(recs)}')
     f32 = lambda v: struct.unpack('<f', struct.pack('<f', v))[0]     # ключ считается по float32, как в файле
     recs.sort(key=lambda r: (int(f32(r[0]) * CELL), int(f32(r[1]) * CELL)))
     with open(a.out, 'wb') as f:
