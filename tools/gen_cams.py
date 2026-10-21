@@ -35,7 +35,7 @@ IGO_TYPES = {192: 0, 194: 0, 206: 8, 68: 1, 193: 9, 199: 10}  # iGo TYPE -> ин
 # 227 начало средней скорости, 199 камера полосы (автобусной).
 W7_TYPES = {192: 0, 194: 0, 68: 1, 215: 8, 193: 9, 209: 9, 227: 12, 199: 11, 12: 0, 203: 0}
 W7_FLAG = {12: 1, 203: 2}      # признак в cams.bin (биты 4..5): 1 — камера скорости «сзади» (12), 2 — светофор + скорость (203)
-W7_DIR_OFFSET = 0       # поворот Direction (град.); полярность 7Ways не проверена на местности
+W7_DIR_OFFSET = 180     # поворот Direction (град.): в 7Ways+ Direction — направление «на камеру», по логам поездок нужен разворот на 180°
 MERGE_M = 30.0
 
 
@@ -127,7 +127,11 @@ def main():
     ap.add_argument('inputs', nargs='+', help='iGo-ext / 7Ways+ файлы (можно несколько стран), затем, при желании, speedcam_*.bin Datakam')
     ap.add_argument('-o', '--out', default='cams.bin')
     ap.add_argument('--bbox', nargs=4, type=float, metavar=('LAT0', 'LON0', 'LAT1', 'LON1'))
+    ap.add_argument('--w7-dir-offset', type=int, default=None, metavar='DEG', help='поворот Direction 7Ways+ в градусах (по умолчанию 180; 0 — без поворота)')
     a = ap.parse_args()
+    if a.w7_dir_offset is not None:
+        global W7_DIR_OFFSET
+        W7_DIR_OFFSET = a.w7_dir_offset
 
     recs, date, total = [], 0, 0
     grid = {}                                   # для проверки «рядом уже есть» при подмешивании
