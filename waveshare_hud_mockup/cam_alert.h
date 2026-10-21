@@ -43,8 +43,10 @@ uint32_t cam_count(void);
 uint32_t cam_date(void);                 /* дата базы ддммгг числом */
 void     cam_config(const cam_cfg_t *c);
 
-/* Ближайшая камера по ходу. hdg_deg — курс 0..360, speed_kmh > 0. */
-bool     cam_query(double lat, double lon, float hdg_deg, float speed_kmh, cam_hit_t *out);
+/* Ближайшая камера по ходу. now_ms — монотонное время, мс; hdg_deg — курс 0..360, speed_kmh > 0.
+   Внутри: поправка позиции на запаздывание GNSS, подавление оповещений в поворотах и
+   подтверждение новой камеры ~0.4 с (против мерцания на малой скорости). */
+bool     cam_query(uint32_t now_ms, double lat, double lon, float hdg_deg, float speed_kmh, cam_hit_t *out);
 
 #ifdef __cplusplus
 }

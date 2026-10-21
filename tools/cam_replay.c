@@ -39,8 +39,8 @@ int main(int argc, char **argv)
         else if (ty == 'S' && id == 0x30B) spd = sg(d, 24, 9) * 0.0f + sg(d, 24, 9);
         else continue;
         if (ty == 'S' && id == 0x486) {
-            int ok = fix == 3 && sat >= 4 && hdop <= 4.0 && hdg < 360 && spd >= 15;
-            cam_hit_t h; int hit = ok && cam_query(lat, lon, hdg, spd, &h);
+            int ok = fix == 3 && sat >= 4 && hdop <= 4.0 && hdg < 360 && spd >= (getenv("MINSPD") ? atof(getenv("MINSPD")) : 15);
+            cam_hit_t h; int hit = ok && cam_query(t, lat, lon, hdg, spd, &h);
             if (hit && h.idx != cur) {
                 if (cur != 0xFFFFFFFFu) printf("   ... подошли на %.0f м (пик)\n", mind);
                 cur = h.idx; mind = h.dist_m; cur_t0 = t; events++;

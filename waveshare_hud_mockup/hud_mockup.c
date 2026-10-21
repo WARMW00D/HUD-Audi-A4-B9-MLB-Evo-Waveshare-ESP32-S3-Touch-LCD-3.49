@@ -265,7 +265,7 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
     else gate = true;
     if (gate) {
         g_diag.q_run++; g_diag.lat_e6 = d->gps_lat_e6; g_diag.lon_e6 = d->gps_lon_e6;
-        hit = cam_query(d->gps_lat_e6 / 1e6, d->gps_lon_e6 / 1e6, d->gps_hdg_x10 / 10.0f, (float)d->speed_kmh, &h);
+        hit = cam_query(now, d->gps_lat_e6 / 1e6, d->gps_lon_e6 / 1e6, d->gps_hdg_x10 / 10.0f, (float)d->speed_kmh, &h);
         if (hit) g_diag.q_hit++;
     }
 
