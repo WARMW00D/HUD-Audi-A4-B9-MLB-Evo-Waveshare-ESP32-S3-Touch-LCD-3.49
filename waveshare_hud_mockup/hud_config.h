@@ -30,11 +30,10 @@
 /* ---- TWAI (для HUD_SRC_TWAI и HUD_SRC_AUTO) ----
    Пины по таблице GPIO платы Waveshare ESP32-S3-Touch-LCD-3.49: GPIO1 и GPIO2
    выведены на разъём и не заняты ничем (LCD, SD, IMU/RTC, I2S, UART).
-   RX — единственный провод данных от CAN Pal к плате.
-   TX драйвер TWAI требует обязательно, но в LISTEN_ONLY он всегда
-   рецессивный. К CAN Pal его НЕ подключать: вывод TX на CAN Pal оставить
-   свободным (внутренняя подтяжка TJA1051 держит рецессив), SLNT — на 3V3.
-   Пин TX — свободный, ни к чему не подключённый (на разъёме GPIO2 оставить пустым). */
+   RX CAN Pal -> GPIO1, TX CAN Pal -> GPIO2 (TWAI TX). В LISTEN_ONLY контроллер
+   держит TX в рецессиве, передатчик трансивера выключен пином SLNT (на 3V3).
+   TX на CAN Pal в воздухе не оставлять: не на каждом модуле он гарантированно
+   остаётся рецессивным, и тогда шина не принимается. */
 #define HUD_CAN_RX_PIN       1
 #define HUD_CAN_TX_PIN       2
 #define HUD_CAN_BITRATE_K    500    /* I-CAN MLB-Evo — 500 кбит/с */

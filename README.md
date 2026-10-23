@@ -177,17 +177,17 @@ Source `HUD_SRC_TWAI`: the HUD listens to I-CAN itself with the built-in TWAI co
 | **Vcc** | board 3V3 | the CAN Pal has its own 5 V charge pump for the transceiver |
 | **GND** | board GND | |
 | **RX** | **GPIO1** (`HUD_CAN_RX_PIN`) | the only data wire |
-| **TX** | **leave unconnected** | the TJA1051 internal pull-up holds recessive — nothing can drive the bus |
+| **TX** | **GPIO2** (`HUD_CAN_TX_PIN`) | wire it; in `LISTEN_ONLY` the controller holds it recessive. Do not leave it floating |
 | **SLNT** | **3V3** | TJA1051 transmitter disabled (silent mode) |
 | **H / L** (terminal block) | I-CAN CAN-H / CAN-L | twisted pair |
 | middle terminal | not needed | it is already tied to the CAN Pal's own GND |
 | **Termination** switch | **OFF** | the car bus is already terminated; an extra 120 Ω degrades it |
 
-Three layers of protection against transmitting: `LISTEN_ONLY` mode, unconnected TX and SLNT tied to 3V3.
+Two layers of protection against transmitting: `LISTEN_ONLY` mode and SLNT tied to 3V3 (the transceiver's transmitter is off).
 
-The TWAI driver requires a TX pin (`HUD_CAN_TX_PIN` = **GPIO2**), but in `LISTEN_ONLY` it always stays recessive. Leave GPIO2 unconnected on the header.
+The TWAI driver requires a TX pin (`HUD_CAN_TX_PIN` = **GPIO2**); in `LISTEN_ONLY` it always stays recessive. Connect it to the CAN Pal TX pin: a floating TX is not guaranteed to stay recessive on every module and can break reception.
 
-Pin choice follows the board's GPIO table: used are LCD (9–14, 17, 18, 21, 42), SD (38–41), IMU/RTC/audio I²C (47, 48), I2S (6, 7, 15, 45, 46), battery (4), EXIO (8), SYS_OUT (16), USB (19, 20), UART0 (43, 44); strapping pins are 0, 3, 45, 46. Fully free: GPIO1, 2, 5. GPIO1 is the CAN RX, GPIO2 the TWAI TX stub; **GPIO5 (ADC1) is used by the optional photoresistor** (see below).
+Pin choice follows the board's GPIO table: used are LCD (9–14, 17, 18, 21, 42), SD (38–41), IMU/RTC/audio I²C (47, 48), I2S (6, 7, 15, 45, 46), battery (4), EXIO (8), SYS_OUT (16), USB (19, 20), UART0 (43, 44); strapping pins are 0, 3, 45, 46. Fully free: GPIO1, 2, 5. GPIO1 is the CAN RX, GPIO2 the TWAI TX; **GPIO5 (ADC1) is used by the optional photoresistor** (see below).
 
 ### Optional photoresistor (light sensor)
 
@@ -206,7 +206,7 @@ Power (12 V → 5 V DC-DC), CAN Pal, the optional light sensor and the display b
 ![Wiring diagram](schematic/HUD_wiring_CAN_DCDC_en.svg)
 
 Russian version: [`schematic/HUD_wiring_CAN_DCDC_ru.svg`](schematic/HUD_wiring_CAN_DCDC_ru.svg).
-The CAN Pal TX wire is deliberately **not connected**.
+The CAN Pal TX wire goes to GPIO2 (`HUD_CAN_TX_PIN`).
 
 ### Case
 
@@ -792,7 +792,7 @@ If you do not agree with these terms, do not build or use the Project.
 
 ### Notes
 
-- The sniffer and the HUD's own TWAI controller run in **LISTEN_ONLY** mode and never transmit on the bus (the CAN Pal TX is not connected, SLNT is tied to 3V3). Do not switch them
+- The sniffer and the HUD's own TWAI controller run in **LISTEN_ONLY** mode and never transmit on the bus (SLNT is tied to 3V3, so the transceiver's transmitter is off). Do not switch them
   to normal mode while connected to a car.
 - Update mode (OTA) runs only on a parked car: BOOT is ignored above `HUD_MENU_MAX_KMH`. Change the default Wi-Fi password in `secrets.h`.
 - The HUD must not distract: night brightness, placement, no stray LEDs.

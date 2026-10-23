@@ -6,14 +6,14 @@
   же декодер can_decode_frame(), что и кадры от BLE-сниффера. ACL тут не нужен:
   декодер сам отбрасывает ненужные ID за один switch.
 
-  Защита от передачи в шину — в три слоя:
-    1. TWAI_MODE_LISTEN_ONLY;
-    2. вывод TX на CAN Pal не подключён (внутренняя подтяжка TJA1051 = рецессив);
-    3. вывод SLNT на CAN Pal подтянут к 3V3 (передатчик TJA1051 выключен).
+  Защита от передачи в шину — в два слоя:
+    1. TWAI_MODE_LISTEN_ONLY (контроллер всегда держит TX в рецессиве);
+    2. вывод SLNT на CAN Pal подтянут к 3V3 (передатчик TJA1051 выключен).
+  Вывод TX на CAN Pal подключён к GPIO2 (TWAI TX): в воздухе его оставлять
+  нельзя, на части модулей это ломает приём.
   Терминатор на CAN Pal — ВЫКЛ: шина в машине уже согласована.
 
-  Подключение (таблица GPIO Waveshare 3.49): CAN Pal RX -> GPIO1, TX CAN Pal —
-  никуда; TWAI TX назначен на свободный GPIO2, который тоже ни к чему не подключён.
+  Подключение (таблица GPIO Waveshare 3.49): CAN Pal RX -> GPIO1, TX -> GPIO2.
 */
 #include <Arduino.h>
 #include "hud_config.h"
@@ -59,7 +59,7 @@ static bool twai_up(void)
         twai_driver_uninstall();
         return false;
     }
-    if (HUD_LOG_TWAI) arduino_printf("[TWAI] LISTEN_ONLY %u кбит/с, RX=GPIO%d, TX=GPIO%d (не подключён)\n",
+    if (HUD_LOG_TWAI) arduino_printf("[TWAI] LISTEN_ONLY %u кбит/с, RX=GPIO%d, TX=GPIO%d\n",
                                     (unsigned)HUD_CAN_BITRATE_K, HUD_CAN_RX_PIN, HUD_CAN_TX_PIN);
     return true;
 }
