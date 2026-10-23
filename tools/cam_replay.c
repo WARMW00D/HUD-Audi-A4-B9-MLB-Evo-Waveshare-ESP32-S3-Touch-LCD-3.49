@@ -22,7 +22,7 @@ int main(int argc, char **argv)
     fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
     uint8_t *buf = malloc(n); if (fread(buf, 1, n, f) != (size_t)n) return 1; fclose(f);
     if (!cam_load(buf, n)) { fprintf(stderr, "bad cams.bin\n"); return 1; }
-    cam_cfg_t c = { 12.0f, 200.0f, 600.0f, 35.0f, 50.0f, argc > 3 ? (uint16_t)strtol(argv[3], 0, 16) : 0x001 };
+    cam_cfg_t c = { 12.0f, 200.0f, 600.0f, 22.0f, 35.0f, argc > 3 ? (uint16_t)strtol(argv[3], 0, 16) : 0x001 };
     cam_config(&c);
     printf("база: %u камер, от %06u\n", cam_count(), cam_date());
 

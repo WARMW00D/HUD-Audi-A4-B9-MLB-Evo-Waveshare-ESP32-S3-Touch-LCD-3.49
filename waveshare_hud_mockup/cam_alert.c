@@ -152,7 +152,7 @@ bool cam_query(uint32_t now_ms, double lat, double lon, float hdg_deg, float spe
                     if (Rr > R) Rr = R;
                     if (along > Rr) continue;
                 }
-                if (cross > (i == s_active ? s_cfg.cross_m * 1.7f : s_cfg.cross_m)) continue;
+                if (cross > (i == s_active ? s_cfg.cross_m * 1.5f : s_cfg.cross_m)) continue;
                 if (r->dir != 0xFFFF) {
                     float d = fabsf(fmodf((float)r->dir - hdg_deg + 540.0f, 360.0f) - 180.0f);
                     if (d > s_cfg.dir_deg) continue;

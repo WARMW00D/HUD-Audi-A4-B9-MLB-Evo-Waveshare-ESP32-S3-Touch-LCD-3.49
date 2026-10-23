@@ -5,7 +5,7 @@
 #define HUD_CONFIG_H
 
 /* Версия прошивки: MAJOR.MINOR.PATCH. MAJOR растёт при несовместимых изменениях (формат/логика базы камер, оповещений). */
-#define HUD_FW_VERSION "2.0.0"
+#define HUD_FW_VERSION "2.0.1"
 
 /* ---- Источник данных ----
    HUD_SRC_BLE  — сырые CAN-кадры от сниффера / BLE-гейта по BLE (протокол ACL)
@@ -190,8 +190,8 @@
 #define HUD_CAM_AHEAD_S           12     /* окно оповещения: секунд хода...                    */
 #define HUD_CAM_MIN_M             200    /* ...но не меньше, м                                 */
 #define HUD_CAM_MAX_M             600    /* ...и не больше, м                                  */
-#define HUD_CAM_CROSS_M           35     /* допуск от оси движения, м                          */
-#define HUD_CAM_DIR_DEG           50     /* допуск по направлению камеры, °                    */
+#define HUD_CAM_CROSS_M           22     /* допуск от оси движения, м                          */
+#define HUD_CAM_DIR_DEG           35     /* допуск по направлению камеры, °                    */
 #define HUD_CAM_MIN_SPEED_KMH     15     /* ниже — не оповещаем (курс GNSS неточен)            */
 #define HUD_CAM_MAX_HDOP_X10      40     /* HDOP хуже 4.0 — позиции не верим                   */
 #define HUD_CAM_BEEP              1      /* один сигнал при появлении камеры, если скорость выше её лимита
