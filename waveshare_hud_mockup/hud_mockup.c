@@ -240,7 +240,7 @@ static void cams_build(lv_obj_t *scr)
     lv_obj_set_style_text_color(cm_dist, lv_color_hex(C_YELLOW), 0);
     lv_label_set_long_mode(cm_dist, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_align(cm_dist, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_width(cm_dist, 130); lv_obj_set_pos(cm_dist, 50, 80);   /* справа от значка камеры */
+    lv_obj_set_width(cm_dist, 130); lv_obj_set_pos(cm_dist, 50, 86);   /* справа от значка камеры */
 
     lv_obj_add_flag(cm_sq, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cm_dist, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(cm_eye, LV_OBJ_FLAG_HIDDEN);
