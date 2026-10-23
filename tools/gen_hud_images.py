@@ -285,6 +285,28 @@ def fuel_icon():
     d.line(P([(13.9, 12.6), (13.9, 4.4), (11.4, 1.8)]), fill=255, width=w, joint="curve")      # пистолет
     return down(m, W, H)
 
+def cam_icon():
+    """Значок «фотовидеофиксация»: фотоаппарат с объективом из колец и вспышкой (свой рисунок, без рамки)."""
+    W, H = 38, 29
+    m = canvas(W, H); d = ImageDraw.Draw(m)
+    def disc(cx, cy, r, v):
+        d.ellipse([(cx - r) * S, (cy - r) * S, (cx + r) * S, (cy + r) * S], fill=v)
+    rrect(d, (0.4, 9.0, 30.0, 27.8), 2.0, fill=255)                # корпус
+    rrect(d, (14.6, 5.6, 19.0, 9.6), 0.5, fill=255)                # видоискатель
+    d.ellipse([2.6 * S, 12.0 * S, 7.4 * S, 14.4 * S], fill=0)      # окошко слева
+    cx, cy = 24.6, 18.6
+    disc(cx, cy, 10.6, 0)                                          # светлый зазор вокруг объектива
+    disc(cx, cy, 9.2, 255); disc(cx, cy, 7.0, 0)                   # внешнее кольцо
+    disc(cx, cy, 5.6, 255); disc(cx, cy, 3.9, 0)                   # среднее кольцо
+    disc(cx, cy, 2.7, 255)                                         # зрачок
+    pts = []                                                       # вспышка — семилучевая звезда
+    for k in range(14):
+        r = 5.0 if k % 2 == 0 else 2.3
+        a = math.radians(-100 + k * 360 / 14)
+        pts.append((33.0 + r * math.cos(a), 5.2 + r * math.sin(a)))
+    d.polygon(P(pts), fill=255)
+    return down(m, W, H)
+
 def lim_mask():
     """Лимитер: надпись LIM (Montserrat Bold, OFL)."""
     from PIL import ImageFont
@@ -364,6 +386,7 @@ def main():
     items.append(("img_presense_tri", presense_tri()))
     items.append(("img_sign_car", sign_car()))
     items.append(("img_fuel_icon", fuel_icon()))
+    items.append(("img_cam_icon", cam_icon()))
     items.append(("img_presense_txt", text_mask("PreSense", 22)))
 
     with open(os.path.join(OUT, "hud_images.c"), "w") as f:

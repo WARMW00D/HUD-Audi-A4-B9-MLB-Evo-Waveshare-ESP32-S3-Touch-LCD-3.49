@@ -19,6 +19,7 @@
 #include "hud_sound.h"
 #include "hud_log.h"
 #include "hud_ota.h"
+#include "hud_cams.h"
 #include "hud_config.h"
 
 void lvgl_log_cb(const char *buf)
@@ -35,7 +36,7 @@ void setup()
   delay(300);
   hud_log_init();                   /* журнал: Serial + SD-карта (HUD_LOG_TO_SD) */
   hud_settings_load();              /* язык, единицы, знаки, бар — из NVS (меню) */
-  hud_log_write("=== setup() start ===\n");
+  hud_log_write("=== setup() start, HUD v" HUD_FW_VERSION " ===\n");
   bool ota = hud_ota_check_boot();  /* BOOT удерживали -> загрузка в режиме обновления (Wi-Fi) */
 
   lv_log_register_print_cb(lvgl_log_cb);
@@ -52,6 +53,7 @@ void setup()
   hud_sound_start();                /* звук: своя задача, стартовый звук */
   hud_ota_start_button();           /* удержание BOOT -> режим обновления */
 
+  hud_cams_start();                 /* база камер из флеша (FATFS) в PSRAM, фоновая задача */
   hud_source_start();               /* источник кадров: BLE / TWAI / генератор */
 }
 

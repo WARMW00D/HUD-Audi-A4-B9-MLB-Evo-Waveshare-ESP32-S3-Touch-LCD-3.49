@@ -17,24 +17,41 @@
 */
 #include <Arduino.h>
 #include <stdarg.h>
-#include "hud_config.h"
-#include "hud_log.h"
-
-#if HUD_LOG_TO_SD
 #include <SPI.h>
 #include <SD.h>
-#include "freertos/stream_buffer.h"
-#include "hud_data.h"
+#include "freertos/semphr.h"
+#include "hud_config.h"
+#include "hud_log.h"
 
 #define SD_CS    38
 #define SD_MOSI  39
 #define SD_MISO  40
 #define SD_SCK   41
 
+/* Монтирование SD общее: его вызывают и задача журнала, и страница журналов в режиме обновления */
+static SPIClass          s_spi(FSPI);
+static SemaphoreHandle_t s_sd_mtx;                 /* создаётся в hud_log_init() */
+static bool              s_sd_ok;
+
+bool hud_sd_ready(void)
+{
+    if (s_sd_mtx) xSemaphoreTake(s_sd_mtx, portMAX_DELAY);
+    if (!s_sd_ok) {
+        s_spi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+        s_sd_ok = SD.begin(SD_CS, s_spi, 20000000);
+    }
+    bool ok = s_sd_ok;
+    if (s_sd_mtx) xSemaphoreGive(s_sd_mtx);
+    return ok;
+}
+
+#if HUD_LOG_TO_SD
+#include "freertos/stream_buffer.h"
+#include "hud_data.h"
+
 static StreamBufferHandle_t s_sb;
 static volatile uint32_t    s_dropped;
 static volatile bool        s_line_start = true;
-static SPIClass             s_spi(FSPI);
 
 /* /logs/ГГГГ-ММ-ДД/log_ЧЧ_N.txt — первый свободный N для этого часа */
 static bool sd_open_hour(File &f, const HudClock &c)
@@ -66,8 +83,7 @@ static void sd_stop(const char *why)
 
 static void sd_task(void *)
 {
-    s_spi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
-    if (!SD.begin(SD_CS, s_spi, 20000000)) { sd_stop("[log] SD-карта не найдена — журнал только в Serial"); return; }
+    if (!hud_sd_ready()) { sd_stop("[log] SD-карта не найдена — журнал только в Serial"); return; }
 
     /* ждём дату и время по CAN; всё, что напечатано до этого, копится в буфере
        (16 КБ) и попадёт в начало файла */
@@ -129,6 +145,7 @@ static void sd_push(const char *s)
 
 void hud_log_init(void)
 {
+    s_sd_mtx = xSemaphoreCreateMutex();
 #if HUD_LOG_TO_SD
     s_sb = xStreamBufferCreate(16 * 1024, 1);
     if (s_sb) xTaskCreatePinnedToCore(sd_task, "hud_sdlog", 4096, nullptr, 1, nullptr, 1);

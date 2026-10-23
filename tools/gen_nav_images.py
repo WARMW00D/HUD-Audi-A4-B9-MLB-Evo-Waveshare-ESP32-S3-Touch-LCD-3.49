@@ -105,7 +105,7 @@ def img_turn(sector):
     v = vec(ang)
     # дорога: прямо через перекрёсток + выбранное направление
     line(d, [(CX, BY + 6), (CX, 4)], ROAD_W, ROAD_A)
-    Lr = min(fit_len(CX, JY, v, 0), 70)
+    Lr = fit_len(CX, JY, v, 0) + ROAD_W      # конец уходит за край холста — срез прямой, как у вертикальной ветки
     line(d, [(CX, JY), (CX + v[0] * Lr, JY + v[1] * Lr)], ROAD_W, ROAD_A)
     if sector == 0:
         arrow_path(d, [(CX, BY), (CX, 8)])
@@ -166,7 +166,8 @@ def img_roundabout(sector):
     v = vec(ang)
     ex0 = (rc[0] + v[0] * R, rc[1] + v[1] * R)
     Le = min(fit_len(ex0[0], ex0[1], v), 30)
-    line(d, [ex0, (ex0[0] + v[0] * (Le + 6), ex0[1] + v[1] * (Le + 6))], ROAD_W, ROAD_A)
+    Lx = fit_len(ex0[0], ex0[1], v, 0) + ROAD_W      # за край холста — прямой срез
+    line(d, [ex0, (ex0[0] + v[0] * Lx, ex0[1] + v[1] * Lx)], ROAD_W, ROAD_A)
     # путь стрелки: въезд снизу, по кольцу против часовой (визуально), съезд
     entry = (CX, rc[1] + R)
     d.line(P([(CX, BY), entry]), fill=ARROW_A, width=int(ARROW_W * S))
@@ -263,6 +264,18 @@ def persp(im):
     co = np.linalg.solve(np.array(A, float), np.array(B, float))
     return im.transform(im.size, Image.PERSPECTIVE, tuple(co), Image.BICUBIC)
 
+FADE_TOP, FADE_SIDE = 12, 40    # «растворение» дороги к верхнему и боковым краям, px
+
+def _edge_fade(im):
+    import numpy as np
+    a = np.asarray(im, dtype=float)
+    x = np.arange(W, dtype=float)[None, :]
+    y = np.arange(H, dtype=float)[:, None]
+    k = np.clip(y / FADE_TOP, 0, 1)                                   # верх
+    k = k * np.clip((x) / FADE_SIDE, 0, 1) * np.clip((W - 1 - x) / FADE_SIDE, 0, 1)
+    k = k * k * (3 - 2 * k)                                           # smoothstep
+    return Image.fromarray((a * k).astype("uint8"))
+
 def road_layer(road, arrow):
     """Слой дороги: серая заливка + белая кайма только по дороге + тёмная тень стрелки на дороге
     (сдвиг вниз). road/arrow — холсты (S-кратные): дорога без стрелки и стрелка без дороги."""
@@ -275,8 +288,10 @@ def road_layer(road, arrow):
     sh = arrow.resize((W * q, H * q), Image.LANCZOS)
     sh = ImageChops.offset(sh, 0, SHADOW * q)
     sh = sh.filter(ImageFilter.GaussianBlur(1.2 * q))
-    fill = ImageChops.multiply(fill, sh.point(lambda v: int(255 - SHADOW_K * v)))
-    return ImageChops.lighter(border, fill).resize((W, H), Image.LANCZOS)
+    shade = sh.point(lambda v: int(255 - SHADOW_K * v))      # множитель яркости: 255 — без тени
+    # тень ложится и на кайму: дорога + кайма одним слоем, затем затемнение под стрелкой
+    out = ImageChops.multiply(ImageChops.lighter(border, fill), shade).resize((W, H), Image.LANCZOS)
+    return out.point(lambda v: v) if False else _edge_fade(out)
 
 SW, SH = 38, 23                 # маленькая стрелка "следующий манёвр" (1/5)
 

@@ -12,11 +12,14 @@
 #include <WebServer.h>
 #include <Update.h>
 #include <Preferences.h>
+#include <FFat.h>
 #include "hud_config.h"
 #include "hud_data.h"
 #include "hud_log.h"
 #include "hud_sound.h"
 #include "hud_ota.h"
+#include "hud_ota_logs.h"
+#include "hud_diag.h"
 extern "C" {
 #include "hud_sounds.h"
 }
@@ -92,6 +95,7 @@ static void button_task(void *)
         }
         hud_log_write("[ota] BOOT удержан — перезагрузка в режим обновления\n");
         hud_sound_play(hud_snd_swa_beep, hud_snd_swa_beep_len);
+        hud_diag_save();                                  /* отчёт о сеансе — на страницу обновления */
         Preferences p;
         if (p.begin("hud", false)) { p.putBool("ota", true); p.end(); }
         vTaskDelay(pdMS_TO_TICKS(400));
@@ -110,12 +114,31 @@ static const char PAGE[] PROGMEM = R"HTML(<!doctype html><html><head><meta chars
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>HUD update</title>
 <style>body{font-family:sans-serif;max-width:480px;margin:24px auto;padding:0 16px;background:#111;color:#eee}
 h1{font-size:20px}input,button{font-size:16px;margin:8px 0}button{padding:10px 18px}
-progress{width:100%;height:20px}#m{margin-top:12px;min-height:24px}small{color:#999}</style></head><body>
+progress{width:100%;height:20px}#m{margin-top:12px;min-height:24px}small{color:#999}a{color:#6cf}</style></head><body>
 <h1>HUD — обновление прошивки / firmware update</h1>
 <p><small>%INFO%</small></p>
 <input type="file" id="f" accept=".bin"><br>
 <button id="b" onclick="up()">Загрузить / Upload</button>
 <progress id="p" value="0" max="100" style="display:none"></progress><div id="m"></div>
+<hr><h1>База камер / camera database</h1>
+<p><small>cams.bin (tools/gen_cams.py)</small></p>
+<p>Состояние / status: <b>%CAMS%</b></p>
+<input type="file" id="g" accept=".bin"><br>
+<button id="c" onclick="upc()">Загрузить базу / Upload database</button>
+<progress id="q" value="0" max="100" style="display:none"></progress><div id="n"></div>
+<hr><h1>Диагностика / Diagnostics</h1>
+%DIAG%
+<hr><h1>Журналы / Logs</h1>
+<p><a href="/logs">Открыть журналы с SD-карты / Open logs from the SD card</a></p>
+<script>
+function upc(){var f=document.getElementById('g').files[0],m=document.getElementById('n'),p=document.getElementById('q');
+if(!f){m.textContent='Выберите cams.bin / choose cams.bin';return}
+var x=new XMLHttpRequest(),d=new FormData();d.append('cams',f,'cams.bin');p.style.display='block';
+x.upload.onprogress=function(e){if(e.lengthComputable)p.value=100*e.loaded/e.total};
+x.onload=function(){m.textContent=x.status==200?'Готово, HUD перезагружается / Done, rebooting':'Ошибка / Error: '+x.responseText};
+x.onerror=function(){m.textContent='Нет связи / Connection lost'};
+document.getElementById('c').disabled=true;x.open('POST','/cams');x.send(d)}
+</script>
 <script>
 function up(){var f=document.getElementById('f').files[0],m=document.getElementById('m'),p=document.getElementById('p');
 if(!f){m.textContent='Выберите .bin / choose a .bin';return}
@@ -160,6 +183,116 @@ static void on_upload()
     }
 }
 
+/* ---------------- база камер -> /cams.bin во флеше (FATFS) ---------------- */
+static bool    s_cam_ok, s_cam_started;
+static File    s_cam_file;
+static size_t  s_cam_len;
+static char    s_cam_err[48];
+
+static void cam_fail(const char *why)
+{
+    strncpy(s_cam_err, why, sizeof s_cam_err - 1);
+    set_state(HUD_OTA_ERROR, -1, why);
+    if (s_cam_file) s_cam_file.close();
+    FFat.remove("/cams.tmp");
+    s_cam_started = false;
+}
+
+/* что лежит в /cams.bin во флеше (для страницы портала) */
+static String cams_file_status()
+{
+    if (!FFat.begin(false)) return "раздел FATFS не смонтирован / FATFS not mounted";
+    File f = FFat.open("/cams.bin", "r");
+    if (!f) { FFat.end(); return "файла нет / no file"; }
+    uint32_t h[4] = {0};
+    size_t sz = f.size();
+    bool rd = f.read((uint8_t *)h, 16) == 16;
+    f.close(); FFat.end();
+    if (!rd || memcmp(h, "CAM1", 4) != 0) return "файл повреждён (нет CAM1) / bad file, size " + String((unsigned)sz);
+    if (sz != 16 + (size_t)h[1] * 12) return "размер не сходится с заголовком / size mismatch, " + String((unsigned)sz);
+    char b[24]; snprintf(b, sizeof b, "%06u", (unsigned)h[2]);
+    return String("в флеше: ") + String((unsigned)h[1]) + " камер, от " + b + ", " + String((unsigned)(sz / 1024)) + " КБ / in flash";
+}
+
+/* отчёт о прошлом сеансе (снимок пишется при удержании BOOT, см. hud_diag.h) */
+static String diag_html()
+{
+    hud_diag_t g;
+    if (!hud_diag_load(&g)) return "<p><small>Нет данных: отчёт сохраняется, когда вы удерживаете BOOT в обычном режиме. / No data yet: the report is saved when BOOT is held in normal mode.</small></p>";
+    static const char *const DB[] = { "не загружалась", "загружена", "нет раздела FATFS", "нет /cams.bin", "нет памяти", "файл повреждён" };
+    static const char *const RR[] = { "?", "питание", "внешний", "программный", "паника", "int. watchdog", "task watchdog", "other watchdog", "deep sleep", "brownout", "SDIO" };
+    String s = "<p><small>Прошлый сеанс / last session</small></p><table style='border-collapse:collapse;font-size:14px'>";
+    auto row = [&](const String &k, const String &v) { s += "<tr><td style='padding:2px 10px 2px 0;color:#999'>" + k + "</td><td>" + v + "</td></tr>"; };
+    uint32_t m = g.uptime_s / 60;
+    row("Длительность / uptime", String((unsigned)(m / 60)) + " ч " + String((unsigned)(m % 60)) + " мин");
+    row("Сброс при старте / reset", g.reset_reason < 11 ? RR[g.reset_reason] : "?");
+    row("Источник / source", g.src == 1 ? "CAN" : g.src == 0 ? "BLE" : "нет связи / none");
+    row("База камер / database", String(g.db_status < 6 ? DB[g.db_status] : "?") + (g.db_status == DB_OK ? String(", ") + String((unsigned)g.db_n) + " камер" : String("")));
+    row("Показ / сигнал камер", String(g.cams_on ? "вкл" : "ВЫКЛ") + " / " + (g.cam_beep ? "вкл" : "выкл"));
+    row("Тиков проверки / ticks", String((unsigned)g.ticks));
+    row("— показ выключен", String((unsigned)g.no_cams_on));
+    row("— база не загружена", String((unsigned)g.no_db));
+    row("— нет GPS / курса / скорости", String((unsigned)g.no_gps) + " / " + String((unsigned)g.no_hdg) + " / " + String((unsigned)g.no_spd));
+    row("— fix≠3 / спутников<4 / HDOP", String((unsigned)g.no_fix) + " / " + String((unsigned)g.no_sat) + " / " + String((unsigned)g.no_hdop));
+    row("— курс не определён / скорость мала", String((unsigned)g.no_hdg_val) + " / " + String((unsigned)g.too_slow));
+    row("Запросов к базе / queries", String((unsigned)g.q_run));
+    row("Камера найдена (тиков) / hits", String((unsigned)g.q_hit));
+    row("Показано камер / shown", String((unsigned)g.shown));
+    if (g.shown) row("Последняя камера / last", "#" + String((unsigned)g.last_idx) + ", лимит " + String(g.last_lim) + ", с " + String(g.last_dist_m) + " м, v=" + String(g.last_spd));
+    if (g.lat_e6 || g.lon_e6) row("Последняя позиция / last fix", String(g.lat_e6 / 1e6, 5) + ", " + String(g.lon_e6 / 1e6, 5));
+    row("Макс. скорость / max speed", String(g.max_spd) + " км/ч");
+    row("Память / free", "RAM " + String((unsigned)(g.heap_free / 1024)) + " КБ, PSRAM " + String((unsigned)(g.psram_free / 1024)) + " КБ");
+    s += "</table>";
+    return s;
+}
+
+static void on_cams_upload()
+{
+    HTTPUpload &u = s_srv->upload();
+    if (u.status == UPLOAD_FILE_START) {
+        s_cam_ok = false; s_cam_started = false; s_cam_len = 0; s_cam_err[0] = 0;
+        set_state(HUD_OTA_UPLOAD, 0, "");
+        hud_log_write("[ota] приём базы камер\n");
+        if (!FFat.begin(true)) { cam_fail("no FATFS partition"); return; }
+        FFat.remove("/cams.tmp");
+        s_cam_file = FFat.open("/cams.tmp", "w");
+        if (!s_cam_file) { cam_fail("cannot create file"); return; }
+        s_cam_started = true;
+    } else if (u.status == UPLOAD_FILE_WRITE && s_cam_started) {
+        if (s_cam_len == 0 && (u.currentSize < 16 || memcmp(u.buf, "CAM1", 4) != 0)) { cam_fail("not a cams.bin"); return; }
+        if (s_cam_file.write(u.buf, u.currentSize) != u.currentSize) { cam_fail("flash write failed (full?)"); return; }
+        s_cam_len += u.currentSize;
+        size_t tot = s_srv->clientContentLength();
+        if (tot > 0) set_state(HUD_OTA_UPLOAD, (int)(((s_cam_len * 100) / tot) > 99 ? 99 : ((s_cam_len * 100) / tot)), NULL);
+        s_t0 = millis();
+    } else if (u.status == UPLOAD_FILE_END && s_cam_started) {
+        s_cam_file.close();
+        File f = FFat.open("/cams.tmp", "r");
+        uint32_t hdr[4] = {0};
+        bool good = f && f.read((uint8_t *)hdr, 16) == 16 && f.size() == 16 + (size_t)hdr[1] * 12;
+        if (f) f.close();
+        if (!good) { cam_fail("size does not match the header"); return; }
+        FFat.remove("/cams.bin");
+        if (!FFat.rename("/cams.tmp", "/cams.bin")) { cam_fail("rename failed"); return; }
+        s_cam_ok = true; s_cam_started = false;
+        set_state(HUD_OTA_DONE, 100, "");
+        hud_log_write("[ota] база камер записана\n");
+    } else if (u.status == UPLOAD_FILE_ABORTED) {
+        if (s_cam_started) cam_fail("upload aborted");
+    }
+}
+
+static void on_cams_done()
+{
+    if (s_cam_ok) {
+        s_srv->send(200, "text/plain", "OK");
+        s_restart_at = millis() + 2500;
+    } else {
+        s_srv->send(500, "text/plain", s_cam_err[0] ? s_cam_err : "failed");
+        set_state(HUD_OTA_WAIT, 0, NULL);
+    }
+}
+
 static void on_done()
 {
     if (s_up_ok) {
@@ -172,15 +305,21 @@ static void on_done()
     }
 }
 
+static void touch_timeout(void) { s_t0 = millis(); }          /* запрос или долгая отдача файла — таймаут режима не идёт */
+
 static void ota_task(void *)
 {
     s_srv = new WebServer(80);
     s_srv->on("/", HTTP_GET, []() {
         String p = FPSTR(PAGE);
-        p.replace("%INFO%", String("build ") + __DATE__ + " " + __TIME__ + " · free " + String(ESP.getFreeSketchSpace() / 1024) + " KB");
+        p.replace("%INFO%", String("v" HUD_FW_VERSION " · build ") + __DATE__ + " " + __TIME__ + " · free " + String(ESP.getFreeSketchSpace() / 1024) + " KB");
+        p.replace("%CAMS%", cams_file_status());
+        p.replace("%DIAG%", diag_html());
         s_srv->send(200, "text/html; charset=utf-8", p);
     });
     s_srv->on("/update", HTTP_POST, on_done, on_upload);
+    s_srv->on("/cams", HTTP_POST, on_cams_done, on_cams_upload);
+    hud_ota_logs_attach(*s_srv, touch_timeout);                  /* /logs, /download, /download-tar, /delete */
     s_srv->onNotFound([]() { s_srv->sendHeader("Location", "/"); s_srv->send(302); });   /* captive-подобный редирект */
     s_srv->begin();
     s_t0 = millis();

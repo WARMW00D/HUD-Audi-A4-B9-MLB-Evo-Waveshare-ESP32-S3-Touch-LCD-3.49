@@ -9,6 +9,8 @@ Data is read passively from the I-CAN (infotainment) bus; nothing is ever transm
 > **Data source** — the sniffer / BLE gateway: [esp32-CAN-sniffer-logger-screener](https://github.com/WARMW00D/esp32-CAN-sniffer-logger-screener).
 > The same repository describes a simplified CAN→BLE gateway for the HUD (no SD card, powered from ACC).
 
+> **Disclaimer.** This is an experimental hobby project provided "as is", without warranty of any kind. Building, installing and using it is entirely at your own risk and responsibility; the authors accept no liability. It is not a safety system and must not be relied on while driving. Camera warnings may be restricted or prohibited in your country. See [Disclaimer and responsibility](#disclaimer-and-responsibility).
+
 ---
 
 ## Contents
@@ -55,12 +57,65 @@ Data is read passively from the I-CAN (infotainment) bus; nothing is ever transm
 | **Fuel to fill up** | Above the speed area on the left, on the gear-indicator line: pump icon and "13 L" / "3.4 gal" — how much fits until the tank is full: `HUD_TANK_L` (54 L) × (100 − level % from `BAP_BC` fct 0x1C). Litres / US gallons in the menu |
 | **Fuel consumption** | 5 px dark-grey strip on the right edge, bottom-up 0–20 L/100 km, blinks above 20. Average = the cluster trip computer "since start" (`BAP_BC`), shown at any speed. Instant only if `Motor_04` is on the bus (not found on I-CAN), from 35 km/h |
 | **Sound** | Startup sound at power-on (original, synthesised by `tools/synth_startup.py`). On-board ES8311 codec and amplifier, own FreeRTOS task — independent of rendering |
-| **Settings menu** | Double tap on the screen (`HUD_MENU_DOUBLE_TAP 0` = single tap), **only while the car is stopped**: the menu closes once moving. Language, units (km / miles), fuel volume (litres / gallons), consumption (instant / average) — all options are shown, the active one green, the others grey. VZE, PSD, accel — toggles: green on, red off (VZE and PSD can both be on). "Sound" (0–100) and overspeed "Margin" (0–20 km/h) open a panel over the menu with a slider and − / + buttons (the volume plays a test beep). "Sensor" opens the photoresistor calibration panel (see Hardware). Stored in flash (NVS); closes with a double tap anywhere (not while a slider / calibration panel is open) or after 10 s without touches |
+| **Settings menu** | Double tap on the screen (`HUD_MENU_DOUBLE_TAP 0` = single tap), **only while the car is stopped**: the menu closes once moving. **Main screen** (what you change often): Sound (volume 0–100) and Margin (overspeed tolerance 0–20 km/h) open a panel with a slider and − / + buttons (the volume plays a test beep); "Road signs" (VZE) and "Speed limit on the road" (PSD) — toggles, both can be on; Accel; Cameras and Camera alert (on/off, see `HUD_CAMS`; hidden when cameras are not compiled in); Fuel — cycles instant / average / off. Toggles: green on, red off. **More >** (rarely changed): language, units (km / miles), volume (litres / gallons) — the active one green, the others grey; Tank (30–90 L, slider panel); Calibrate sensor (photoresistor, see Hardware). Everything is stored in flash (NVS); the menu closes with a double tap anywhere (not while a slider / calibration panel is open) or after 10 s without touches |
 | **Firmware update (OTA)** | Hold **BOOT** for 1.5 s with the car stopped: the HUD reboots into update mode — Wi-Fi access point `HUD-Update`, the screen shows the password, the address `http://192.168.4.1` and a progress bar. Upload the `.bin` on the page, the HUD flashes it and reboots. See [Updating over Wi-Fi](#6-updating-over-wi-fi-ota) |
 | **Data-source indicator** | Bottom-left, under the navigation arrow. Grey Bluetooth icon with dots = connecting to the sniffer; dark-blue icon = BLE connected; dark-green **CAN** = frames come from the own CAN Pal transceiver. Hidden when there is no data and nothing to connect to |
 
 Any field without fresh data is **hidden** instead of showing a stale value
 (timeouts are listed in [Data sources](#data-sources-can)).
+
+### Version
+
+Current firmware version: **2.0.0** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
+
+### Screenshots
+
+These are not photos or mock-ups: the HUD screen code (`hud_mockup.c`) is built for a PC together with LVGL and fed with frames from real drive logs (the same decoder and the same camera database as in the firmware). 1280×344 = the 640×172 display at 2×.
+
+![ACC and Lane Assist active, speed camera 190 m ahead, right turn](docs/screens/hud_01_acc_lka_camera_nav.png)
+*ACC and Lane Assist active, speed camera 190 m ahead, right turn*
+
+![Over the camera limit: camera icon turns red, its limit sign flashes, speed digits get the red outline](docs/screens/hud_02_overspeed_camera_alert.png)
+*Over the camera limit: camera icon turns red, its limit sign flashes, speed digits get the red outline*
+
+![Navigation: right turn in 500 m, Lane Assist lines](docs/screens/hud_03_right_turn_nav.png)
+*Navigation: right turn in 500 m, Lane Assist lines*
+
+<details><summary>More screenshots</summary>
+
+![Straight road, camera 110 m ahead, navigation](docs/screens/hud_04_camera_straight_nav.png)
+*Straight road, camera 110 m ahead, navigation*
+
+![ACC + Lane Assist, camera 260 m ahead](docs/screens/hud_05_acc_lka_camera_highway.png)
+*ACC + Lane Assist, camera 260 m ahead*
+
+![Right turn in 600 m, set speed](docs/screens/hud_06_right_turn_600m.png)
+*Right turn in 600 m, set speed*
+
+![Left turn, camera 220 m ahead](docs/screens/hud_07_left_turn_camera_ahead.png)
+*Left turn, camera 220 m ahead*
+
+![Lane Assist lines (yellow = on but not holding), navigation](docs/screens/hud_08_lka_lines_nav.png)
+*Lane Assist lines (yellow = on but not holding), navigation*
+
+![Pre Sense warning](docs/screens/hud_09_presense_warning.png)
+*Pre Sense warning*
+
+![Navigation: distance to the turn, remaining distance and arrival time](docs/screens/hud_10_nav_distance.png)
+*Navigation: distance to the turn, remaining distance and arrival time*
+
+![English and miles: mph, mi, ft](docs/screens/hud_11_english_mph_bonus.png)
+*English and miles: mph, mi, ft*
+
+</details>
+
+**Settings menu** (double tap while stopped) — the main screen and the "More >" page, also rendered from the real code:
+
+![Settings menu, main screen](docs/screens/menu_main.png)
+*Main screen: sound, margin, road signs, speed limit on the road, accel, cameras, camera alert, fuel*
+
+![Settings menu, More page](docs/screens/menu_more.png)
+*"More >": language, units, volume, tank, light sensor calibration*
 
 ---
 
@@ -225,6 +280,19 @@ If you use the BLE source with pairing, first copy `waveshare_hud_mockup/secrets
 
 The Wi-Fi password is `HUD_OTA_PASS` from `secrets.h` (default `hud12345` — change it). In update mode CAN, BLE and sound are off, so it is only for the parked car. An interrupted upload does not break anything: the new image becomes active only after it is fully written, the old firmware stays. A wrong file (not a firmware image) is rejected by the updater.
 
+### Logs from the SD card (on the same page)
+
+If the board's SD card holds logs (`HUD_LOG_TO_SD 1`, `/logs/YYYY-MM-DD/log_HH_N.txt`), the update page has a **Logs** link (`http://192.168.4.1/logs`), the same way as on the sniffer portal: folders by date (newest first), expand a folder to see its files and sizes. A single file downloads by its link; tick folders and press **Download TAR** to get them as one archive, or **Delete selected** to remove the ticked folders with everything in them (with a confirmation, cannot be undone). The card is mounted by the page itself, so logging does not have to be on at that moment. Only paths of the form `/logs/YYYY-MM-DD[/file]` are accepted. Downloading keeps the update-mode timeout from running out.
+
+### Camera database (`cams.bin`)
+
+1. Recommended source: the open 7Ways+ extended+ base from openSpeedcam.net (`7Ways+_RU.txt`, `7Ways+_BL.txt`): `python3 tools/gen_cams.py 7Ways+_RU.txt 7Ways+_BL.txt -o cams.bin` (the direction is rotated by 180° automatically; false cameras on your route can be removed with `--exclude tools/cams_exclude.txt`, see [cams/ru/README.md](cams/ru/README.md)). Alternatively download the camera list from speedcamonline.ru, iGo extended without mobile units (`https://speedcamonline.ru/igoext/Rus/nomobile/`, a CSV; check that the download was not cut off) and convert it: `python3 tools/gen_cams.py igo.csv -o cams.bin`. A Datakam base (`speedcam_*.bin`) can be added after it as a supplement: `python3 tools/gen_cams.py igo.csv speedcam_D6.bin -o cams.bin`. Optional `--bbox lat0 lon0 lat1 lon1` cuts a region. The format and the type codes found so far are described in [docs/cams_format.md](docs/cams_format.md).
+2. Arduino IDE: **Tools → Partition Scheme → "16M Flash (3MB APP/9.9MB FATFS)"** (the same scheme OTA needs) and **PSRAM: OPI**; the database is read into PSRAM at start.
+3. Hold **BOOT** (update mode), open `http://192.168.4.1`, in the "Camera database" block choose `cams.bin` and upload; the HUD reboots. The file lives in the flash FATFS partition as `/cams.bin`.
+4. Check without the car: `gcc -O2 -o cam_replay tools/cam_replay.c waveshare_hud_mockup/cam_alert.c -Iwaveshare_hud_mockup -lm && ./cam_replay cams.bin can_log_0004.txt` replays a sniffer log against the database and prints where the HUD would show cameras. `cam_replay` is a PC-only debugging tool (not part of the firmware): it takes position (0x486), heading (0x484) and speed (0x30B) from the log, calls the same `cam_query()` as the HUD and prints each alert with the distance. Use it to check the database on your own drives and to tune `HUD_CAM_*` without reflashing; an optional third argument is the type mask in hex (default `1` = code 510).
+
+Mobile cameras / tripods are not in the Datakam base and are not supported (they do not stay in place).
+
 ---
 
 ## Settings in `hud_config.h`
@@ -259,12 +327,15 @@ The Wi-Fi password is `HUD_OTA_PASS` from `secrets.h` (default `hud12345` — ch
 | `HUD_PSD_LIMITS` / `HUD_VZE_SIGNS` | `1` / `1` | signs from PSD / from VZE_01 on first boot (then from the menu) |
 | `HUD_PSD_LEGAL_DELAY_MS` | `1000` | delay before switching from explicit sign to legal limit |
 | `HUD_SIGN_CYCLE_MS` | `1000` | several signs rotate, this many ms each |
+| `HUD_CAMS` (+ `HUD_CAM_*`) | `1` | speed-camera warning from the car's own GNSS (`NavPos_01` 0x486 position, `NavData_01` 0x484 heading, 5 Hz each, **added to the sniffer ACL**). Needs the database `cams.bin` in the flash FATFS partition (see "Camera database"); no file — silently off. In the menu: **Cameras** and **Camera alert** buttons (the config values are first-boot defaults `HUD_CAMS_ON` / `HUD_CAM_BEEP`). **With `HUD_PSD_DIAG 1` cameras are switched off** (they share the place under the sign). Shows in place of the regular sign (it has priority): the camera's round limit sign on a yellow square (flashes when above limit + margin), below it a camera icon with a flash and the distance. `HUD_CAM_TYPE_MASK` = which camera types (bit 0 = code 510 stationary cameras, bit 8 = 760 DPS posts), `HUD_CAM_AHEAD_S/MIN_M/MAX_M` = warning window, `HUD_CAM_CROSS_M` / `HUD_CAM_DIR_DEG` = tolerance from the driving line / camera direction, `HUD_CAM_MIN_SPEED_KMH`, `HUD_CAM_MAX_HDOP_X10`, `HUD_CAM_BEEP` (one beep when a camera appears and speed is above its limit), `HUD_CAM_OVERSPEED_M` (closer than this the camera limit also drives the red speed outline). The position is extrapolated for the GNSS delay and update rate; cameras that shoot from behind (flag 1 in `cams.bin`) are announced later, `CAM_REAR_AHEAD_S` / `CAM_REAR_MIN_M` in `cam_alert.c` |
+| `HUD_TSR_STATE` | `0` | road-sign recognition indicator (`VZE_Hinweistext`): a Ø10 px dot in the top row — yellow / green (camera working) / red (unavailable until the bus restarts). `1` — show |
+| `HUD_PSD_DIAG` | `0` | debug only, no menu entry: indicators under the sign — map-match dot (green/red, grey = PSD silent), 3 speed-limit quality bars, country code, built-up icon, guidance icon, sign source (V = VZE; PA/PO/PB = PSD, sign from VZA/VZO/both). The dot is green when PSD_05 is not Off-Road, the segment category is not 7 (Init) and its ADAS quality is 1. Logs PSD_04/05 frame counters and quality fields every 10 s |
 | `HUD_OVERSPEED_TOL_KMH` / `HUD_OVERSPEED_START` | `20` / `75` | overspeed tolerance on first boot, km/h (0…20, then from the menu; km/h also in mile mode), and the % of it where the outline starts to appear |
 | `HUD_TOUCH_ENABLE` | `1` | tap the screen for the settings menu; `0` = touch not polled |
 | `HUD_MENU_DOUBLE_TAP` / `HUD_DOUBLE_TAP_MS` | `1` / `400` | menu on double tap (window for the second tap, ms); `0` = single tap |
 | `HUD_MENU_ONLY_STOPPED` / `HUD_MENU_MAX_KMH` | `1` / `0` | menu only at speed ≤ 0 km/h (allowed when there is no speed data) |
 | `HUD_MENU_TIMEOUT_MS` | `10000` | the menu closes after 10 s without touches |
-| `HUD_VOLUME_GAL` / `HUD_TANK_L` | `0` / `54` | "fuel to fill up" in gallons on first boot (then from the menu) / tank size, L |
+| `HUD_VOLUME_GAL` / `HUD_TANK_L` | `0` / `54` | "fuel to fill up" in gallons on first boot / tank size, L on first boot (then from the menu: More → Tank, 30–90 L) |
 | `HUD_SNIFFER_NAME` | `"S3-CAN-Sniffer"` | advertised name of the sniffer |
 | `HUD_LOG_BLE` | `1` | `[BLE]` sniffer connection, ACL write and read-back, errors |
 | `HUD_LOG_SRC` | `1` | `[src]` which source is currently used (AUTO) |
@@ -631,10 +702,14 @@ several times (noting the times), then look for bits that change at those moment
 ├── .gitignore                 secrets.h is never published
 ├── case/                      3D-printable case: hud_front / hud_rear (.step, .stl), previews
 ├── schematic/                 wiring diagram (DC-DC, CAN Pal): HUD_wiring_CAN_DCDC_en.svg / _ru.svg
+├── docs/                      cams_format.md (camera database format), screens/ (HUD screenshots)
 ├── tools/
 │   ├── gen_hud_images.py      icon and car view generator
 │   ├── gen_nav_images.py      arrow generator
 │   ├── can_bitdiff.py         find changing bits in a log
+│   ├── gen_cams.py            7Ways+ / speedcamonline.ru (iGo-ext) + Datakam -> cams.bin (camera database)
+│   ├── cams_exclude.txt       false cameras to drop from cams.bin (gen_cams.py --exclude)
+│   ├── cam_replay.c           PC tool: replays a CAN log against cams.bin with the same cam_alert.c as the HUD
 │   ├── make_sounds.py         sounds from tools/sounds/ to hud_sounds.c (needs ffmpeg)
 │   ├── synth_startup.py       synthesises the startup sound from scratch (numpy), own rights
 │   ├── sounds/                sound sources (startup.wav, swa_beep.wav — synthesised)
@@ -654,12 +729,15 @@ several times (noting the times), then look for bits that change at those moment
     ├── hud_sound.c/.h             sound: ES8311 + I2S, own task, sound queue
     ├── hud_log.cpp/.h             log: Serial + file on the SD card
     ├── hud_ota.cpp/.h             OTA: BOOT button, Wi-Fi access point, upload page
+    ├── hud_ota_logs.cpp/.h        update page: list, download (file / TAR) and delete SD logs
     ├── hud_light.cpp/.h           photoresistor on GPIO5: ADC, calibration, lux estimate
     ├── hud_settings.cpp           menu settings in flash (NVS)
     ├── hud_sounds.c/.h            PCM sounds at 22050 Hz (generated)
     ├── src/esp_codec_dev/         Espressif codec driver (from the Waveshare 08_Audio_Test example)
     ├── vze_table.h                sign code table + ACC_Tempolimit
     ├── psd_speedlimit.c/.h        speed limits from PSD (MIB route prediction)
+    ├── cam_alert.c/.h             speed cameras ahead from GNSS position, heading and speed (pure C)
+    ├── hud_cams.cpp/.h            loads /cams.bin from the FATFS partition into PSRAM
     ├── hud_images.c/.h            icons and car view (generated)
     ├── hud_nav_images.c/.h        navigation arrows (generated)
     ├── hud_font_*.c               Montserrat / Roboto Condensed fonts (generated)
@@ -695,6 +773,24 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 ---
 
 ## Safety and legal notes
+
+### Disclaimer and responsibility
+
+This section supplements the MIT licence in [LICENSE](LICENSE) and does not replace it. It is not legal advice.
+
+1. **"As is", no warranty.** The hardware designs, firmware, tools, documentation and other materials in this repository (the "Project") are provided "as is" and "as available", without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, accuracy, completeness, non-infringement and uninterrupted or error-free operation.
+2. **Limitation of liability.** To the maximum extent permitted by applicable law, the authors and contributors are not liable for any direct, indirect, incidental, special, consequential or other damages or losses arising from the Project or its use, including but not limited to: damage to or failure of a vehicle, its electrical system, control units, bus or other equipment; loss of the manufacturer's or seller's warranty or of type approval / roadworthiness; fire, personal injury or death; traffic accidents; fines, penalties, confiscation of equipment or other legal consequences; loss of data. Nothing in this notice excludes or limits liability that cannot be excluded or limited under applicable law.
+3. **Responsibility of the user.** Everyone who builds, installs, modifies, connects to a vehicle or uses the Project or any part of it does so **solely at their own risk and bears all responsibility** for the result, including correct wiring and power supply, safe installation and compliance with the law. The authors have not verified the Project on every vehicle, model year, equipment variant or software version, and the descriptions of signals and wiring may be incomplete or wrong. If you are not sure what you are doing, do not connect anything to the vehicle.
+4. **Not a safety system.** The HUD is an auxiliary display. Displayed values (speed, speed limits and signs, camera warnings, ACC / Lane Assist / Pre Sense states, navigation, fuel and others) may be wrong, delayed, missing or misleading. The driver remains fully responsible for driving, for observing traffic signs and rules, and must rely on the vehicle's own instruments and on the road situation, not on this device. Install and set it up so that it does not distract and does not obstruct the view or airbag zones.
+5. **Speed-camera warnings and local law.** In some countries and regions the use, possession or installation of devices, software or data that warn about speed cameras or police checkpoints (or that show their positions) is restricted or prohibited. The camera feature (`HUD_CAMS`) is optional and can be disabled at compile time and in the menu. **You alone are responsible for checking and complying with the laws of every country you drive in.** The camera database is **not** part of this repository: the files you load come from third parties, their terms of use apply, and the data may be incomplete, outdated or wrong. The same applies to other regulations (vehicle modification and approval rules, rules on devices in the driver's field of view, privacy, radio / electronic equipment rules).
+6. **Vehicle data and third parties.** The Project only listens to the vehicle bus; the signal descriptions come from public sources and from the author's own observations for interoperability and personal use. Check that you are entitled to access and modify your vehicle and that doing so does not breach your agreements (warranty, leasing, insurance) or the law. Do not use the Project on vehicles you do not own or have no permission to modify.
+7. **Trademarks.** Audi, Volkswagen, VAG, MIB, MLB and other names and marks belong to their owners and are used only to describe compatibility. The Project is independent and is not affiliated with, endorsed or approved by them.
+8. **Compensation.** To the extent permitted by applicable law, a person who builds or uses the Project and passes it on to others is responsible for it towards those others, and agrees not to make claims against the authors and contributors for damage arising from the Project and, if such claims are made by third parties because of that person's use, to compensate the authors and contributors for the resulting losses.
+9. **Third-party materials** (fonts, icons, libraries, data) are covered by their own licences and terms, see below.
+
+If you do not agree with these terms, do not build or use the Project.
+
+### Notes
 
 - The sniffer and the HUD's own TWAI controller run in **LISTEN_ONLY** mode and never transmit on the bus (SLNT is tied to 3V3, so the transceiver's transmitter is off). Do not switch them
   to normal mode while connected to a car.
