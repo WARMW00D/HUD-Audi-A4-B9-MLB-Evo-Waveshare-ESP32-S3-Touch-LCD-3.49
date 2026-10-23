@@ -205,6 +205,7 @@ static volatile uint8_t g_units, g_tol;   /* определены ниже (tent
 static volatile bool g_cams_on, g_cam_beep;
 #if HUD_CAMS
 static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y, uint32_t col);
+static volatile uint8_t g_lang;   /* определён ниже */
 static lv_obj_t *cm_sq, *cm_disc, *cm_lim, *cm_dist, *cm_eye;
 
 /* Знак камеры — на месте обычного знака, того же размера (64 px), самый приоритетный:
@@ -232,13 +233,14 @@ static void cams_build(lv_obj_t *scr)
     lv_obj_set_style_text_color(cm_lim, lv_color_black(), 0);
     lv_obj_center(cm_lim);
 
-    cm_eye = car_img(scr, &img_cam_icon, 14, 72, C_YELLOW);   /* значок камеры со вспышкой */
+    cm_eye = car_img(scr, &img_cam_icon, 5, 80, C_YELLOW);   /* значок камеры со вспышкой */
 
     cm_dist = lv_label_create(scr);  lv_label_set_text(cm_dist, "");
-    lv_obj_set_style_text_font(cm_dist, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_text_font(cm_dist, &hud_font_route, 0);
     lv_obj_set_style_text_color(cm_dist, lv_color_hex(C_YELLOW), 0);
-    lv_obj_set_style_text_align(cm_dist, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(cm_dist, SIGN_D + 2); lv_obj_set_pos(cm_dist, 0, 106);
+    lv_label_set_long_mode(cm_dist, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_align(cm_dist, LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_set_width(cm_dist, 130); lv_obj_set_pos(cm_dist, 50, 80);   /* справа от значка камеры */
 
     lv_obj_add_flag(cm_sq, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(cm_dist, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(cm_eye, LV_OBJ_FLAG_HIDDEN);
@@ -275,8 +277,8 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
     if (!hit) return false;
 
     char b[16];
-    if (g_units == HUD_UNITS_MI) snprintf(b, sizeof b, "%d ft", (int)(h.dist_m * 3.281f / 50) * 50);
-    else                         snprintf(b, sizeof b, "%d m",  (int)(h.dist_m / 10) * 10);
+    if (g_units == HUD_UNITS_MI) snprintf(b, sizeof b, "%dft", (int)(h.dist_m * 3.281f / 50) * 50);
+    else                         snprintf(b, sizeof b, "%d%s",  (int)(h.dist_m / 10) * 10, g_lang == HUD_LANG_EN ? "m" : "м");   /* без пробела: 330м / 330m */
     set_text(cm_dist, b);
     if (h.limit) snprintf(b, sizeof b, "%u", h.limit); else snprintf(b, sizeof b, "?");
     set_font(cm_lim, h.limit >= 100 ? &hud_font_sign3 : &hud_font_sign2);
