@@ -68,28 +68,28 @@
 
 Это не фото и не макеты: код экрана HUD (`hud_mockup.c`) собран под ПК вместе с LVGL, и в него подаются кадры из реальных логов поездок (тот же декодер и та же база камер, что в прошивке). 1280×344 — дисплей 640×172 в масштабе 2×.
 
-![ACC и Lane Assist активны, камера через 40 м, стрелка навигации](docs/screens/hud_01_acc_lka_camera_nav.png)
-*ACC и Lane Assist активны, камера через 40 м, стрелка навигации*
+![ACC и Lane Assist активны, камера через 190 м, правый поворот](docs/screens/hud_01_acc_lka_camera_nav.png)
+*ACC и Lane Assist активны, камера через 190 м, правый поворот*
 
 ![Превышение лимита камеры: значок камеры красный, её знак мигает, цифры скорости с красной обводкой](docs/screens/hud_02_overspeed_camera_alert.png)
 *Превышение лимита камеры: значок камеры красный, её знак мигает, цифры скорости с красной обводкой*
 
-![Стрелка кольцевой развязки, камера через 130 м](docs/screens/hud_03_roundabout_camera.png)
-*Стрелка кольцевой развязки, камера через 130 м*
+![Навигация: правый поворот через 500 м, линии Lane Assist](docs/screens/hud_03_right_turn_nav.png)
+*Навигация: правый поворот через 500 м, линии Lane Assist*
 
 <details><summary>Ещё скриншоты</summary>
 
-![Трасса: ACC с машиной впереди, камера у знака, заданная скорость](docs/screens/hud_04_acc_camera_straight.png)
-*Трасса: ACC с машиной впереди, камера у знака, заданная скорость*
+![Прямая дорога, камера через 110 м, навигация](docs/screens/hud_04_camera_straight_nav.png)
+*Прямая дорога, камера через 110 м, навигация*
 
-![ACC + Lane Assist, камера через 20 м](docs/screens/hud_05_acc_lka_camera_highway.png)
-*ACC + Lane Assist, камера через 20 м*
+![ACC + Lane Assist, камера через 260 м](docs/screens/hud_05_acc_lka_camera_highway.png)
+*ACC + Lane Assist, камера через 260 м*
 
-![Правый поворот через 1,4 км, камера через 10 м](docs/screens/hud_06_right_turn_camera_close.png)
-*Правый поворот через 1,4 км, камера через 10 м*
+![Правый поворот через 600 м, заданная скорость](docs/screens/hud_06_right_turn_600m.png)
+*Правый поворот через 600 м, заданная скорость*
 
-![Левый поворот, камера через 210 м](docs/screens/hud_07_left_turn_camera_ahead.png)
-*Левый поворот, камера через 210 м*
+![Левый поворот, камера через 220 м](docs/screens/hud_07_left_turn_camera_ahead.png)
+*Левый поворот, камера через 220 м*
 
 ![Линии Lane Assist (жёлтая — включён, но не держит), навигация](docs/screens/hud_08_lka_lines_nav.png)
 *Линии Lane Assist (жёлтая — включён, но не держит), навигация*
@@ -97,8 +97,8 @@
 ![Предупреждение Pre Sense](docs/screens/hud_09_presense_warning.png)
 *Предупреждение Pre Sense*
 
-![Машина впереди на значке ACC, камера через 100 м](docs/screens/hud_10_camera_acc_vehicle_ahead.png)
-*Машина впереди на значке ACC, камера через 100 м*
+![Навигация: расстояние до манёвра, остаток пути и время прибытия](docs/screens/hud_10_nav_distance.png)
+*Навигация: расстояние до манёвра, остаток пути и время прибытия*
 
 ![Английский и мили: mph, mi, ft](docs/screens/hud_11_english_mph_bonus.png)
 *Английский и мили: mph, mi, ft*

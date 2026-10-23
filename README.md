@@ -68,28 +68,28 @@ Any field without fresh data is **hidden** instead of showing a stale value
 
 These are not photos or mock-ups: the HUD screen code (`hud_mockup.c`) is built for a PC together with LVGL and fed with frames from real drive logs (the same decoder and the same camera database as in the firmware). 1280×344 = the 640×172 display at 2×.
 
-![ACC and Lane Assist active, speed camera 40 m ahead, navigation arrow](docs/screens/hud_01_acc_lka_camera_nav.png)
-*ACC and Lane Assist active, speed camera 40 m ahead, navigation arrow*
+![ACC and Lane Assist active, speed camera 190 m ahead, right turn](docs/screens/hud_01_acc_lka_camera_nav.png)
+*ACC and Lane Assist active, speed camera 190 m ahead, right turn*
 
 ![Over the camera limit: camera icon turns red, its limit sign flashes, speed digits get the red outline](docs/screens/hud_02_overspeed_camera_alert.png)
 *Over the camera limit: camera icon turns red, its limit sign flashes, speed digits get the red outline*
 
-![Roundabout arrow, camera 130 m ahead](docs/screens/hud_03_roundabout_camera.png)
-*Roundabout arrow, camera 130 m ahead*
+![Navigation: right turn in 500 m, Lane Assist lines](docs/screens/hud_03_right_turn_nav.png)
+*Navigation: right turn in 500 m, Lane Assist lines*
 
 <details><summary>More screenshots</summary>
 
-![Highway: ACC with a car ahead, camera at the sign, set speed](docs/screens/hud_04_acc_camera_straight.png)
-*Highway: ACC with a car ahead, camera at the sign, set speed*
+![Straight road, camera 110 m ahead, navigation](docs/screens/hud_04_camera_straight_nav.png)
+*Straight road, camera 110 m ahead, navigation*
 
-![ACC + Lane Assist, camera 20 m ahead](docs/screens/hud_05_acc_lka_camera_highway.png)
-*ACC + Lane Assist, camera 20 m ahead*
+![ACC + Lane Assist, camera 260 m ahead](docs/screens/hud_05_acc_lka_camera_highway.png)
+*ACC + Lane Assist, camera 260 m ahead*
 
-![Right turn at 1.4 km, camera 10 m ahead](docs/screens/hud_06_right_turn_camera_close.png)
-*Right turn at 1.4 km, camera 10 m ahead*
+![Right turn in 600 m, set speed](docs/screens/hud_06_right_turn_600m.png)
+*Right turn in 600 m, set speed*
 
-![Left turn, camera 210 m ahead](docs/screens/hud_07_left_turn_camera_ahead.png)
-*Left turn, camera 210 m ahead*
+![Left turn, camera 220 m ahead](docs/screens/hud_07_left_turn_camera_ahead.png)
+*Left turn, camera 220 m ahead*
 
 ![Lane Assist lines (yellow = on but not holding), navigation](docs/screens/hud_08_lka_lines_nav.png)
 *Lane Assist lines (yellow = on but not holding), navigation*
@@ -97,8 +97,8 @@ These are not photos or mock-ups: the HUD screen code (`hud_mockup.c`) is built 
 ![Pre Sense warning](docs/screens/hud_09_presense_warning.png)
 *Pre Sense warning*
 
-![Car ahead on the ACC icon, camera 100 m ahead](docs/screens/hud_10_camera_acc_vehicle_ahead.png)
-*Car ahead on the ACC icon, camera 100 m ahead*
+![Navigation: distance to the turn, remaining distance and arrival time](docs/screens/hud_10_nav_distance.png)
+*Navigation: distance to the turn, remaining distance and arrival time*
 
 ![English and miles: mph, mi, ft](docs/screens/hud_11_english_mph_bonus.png)
 *English and miles: mph, mi, ft*
