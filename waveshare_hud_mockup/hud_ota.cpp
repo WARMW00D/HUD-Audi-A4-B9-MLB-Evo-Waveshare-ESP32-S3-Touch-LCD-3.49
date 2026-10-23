@@ -312,7 +312,7 @@ static void ota_task(void *)
     s_srv = new WebServer(80);
     s_srv->on("/", HTTP_GET, []() {
         String p = FPSTR(PAGE);
-        p.replace("%INFO%", String("build ") + __DATE__ + " " + __TIME__ + " · free " + String(ESP.getFreeSketchSpace() / 1024) + " KB");
+        p.replace("%INFO%", String("v" HUD_FW_VERSION " · build ") + __DATE__ + " " + __TIME__ + " · free " + String(ESP.getFreeSketchSpace() / 1024) + " KB");
         p.replace("%CAMS%", cams_file_status());
         p.replace("%DIAG%", diag_html());
         s_srv->send(200, "text/html; charset=utf-8", p);

@@ -36,7 +36,7 @@ void setup()
   delay(300);
   hud_log_init();                   /* журнал: Serial + SD-карта (HUD_LOG_TO_SD) */
   hud_settings_load();              /* язык, единицы, знаки, бар — из NVS (меню) */
-  hud_log_write("=== setup() start ===\n");
+  hud_log_write("=== setup() start, HUD v" HUD_FW_VERSION " ===\n");
   bool ota = hud_ota_check_boot();  /* BOOT удерживали -> загрузка в режиме обновления (Wi-Fi) */
 
   lv_log_register_print_cb(lvgl_log_cb);
