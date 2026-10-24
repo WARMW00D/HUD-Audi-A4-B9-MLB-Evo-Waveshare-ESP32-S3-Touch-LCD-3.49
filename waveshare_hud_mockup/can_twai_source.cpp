@@ -34,7 +34,7 @@ static bool twai_up(void)
                                                           (gpio_num_t)HUD_CAN_RX_PIN,
                                                           TWAI_MODE_LISTEN_ONLY);
     g.tx_queue_len   = 0;          /* передачи нет */
-    g.rx_queue_len   = 128;        /* I-CAN ~1500-1700 кадров/с, запас на всплески */
+    g.rx_queue_len   = 512;        /* I-CAN ~1500-1700 кадров/с: 512 = ~300 мс запаса на всплески и паузы задачи */
     g.alerts_enabled = TWAI_ALERT_NONE;
 
 #if   HUD_CAN_BITRATE_K == 500
@@ -131,7 +131,7 @@ static void twai_task(void *)
 
 void twai_source_start(void)
 {
-    xTaskCreatePinnedToCore(twai_task, "can_twai", 4096, nullptr, 4, nullptr, 1);
+    xTaskCreatePinnedToCore(twai_task, "can_twai", 4096, nullptr, 10, nullptr, 1);
 }
 
 #endif  /* HUD_SRC_TWAI || HUD_SRC_AUTO */

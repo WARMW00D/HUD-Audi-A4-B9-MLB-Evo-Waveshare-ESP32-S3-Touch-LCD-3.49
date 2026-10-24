@@ -17,7 +17,7 @@
 #include "esp_timer.h"
 
 /* ---------- таймауты свежести (мс) ---------- */
-#define TO_SPEED   1000
+#define TO_SPEED   2000
 #define TO_ACC     1000
 #define TO_GEAR    1000
 #define TO_BLINK   2500

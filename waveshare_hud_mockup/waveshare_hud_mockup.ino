@@ -33,6 +33,7 @@ void setup()
 {
   i2c_master_Init();
   Serial.begin(115200);
+  Serial.setTxTimeoutMs(0);   /* печать в USB не должна блокировать задачу приёма CAN */
   delay(300);
   hud_log_init();                   /* журнал: Serial + SD-карта (HUD_LOG_TO_SD) */
   hud_settings_load();              /* язык, единицы, знаки, бар — из NVS (меню) */
