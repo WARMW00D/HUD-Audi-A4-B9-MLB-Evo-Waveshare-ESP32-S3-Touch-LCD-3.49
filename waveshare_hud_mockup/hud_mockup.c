@@ -270,6 +270,12 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
         hit = cam_query(now, d->gps_lat_e6 / 1e6, d->gps_lon_e6 / 1e6, d->gps_hdg_x10 / 10.0f, (float)d->speed_kmh, &h);
         if (hit) g_diag.q_hit++;
     }
+    /* Условия допуска на миг не выполнились (курс/HDOP/скорость/GNSS мигнули) — камеру не гасим сразу,
+       иначе на её месте на мгновение вспыхивает обычный знак (VZE/PSD). Если запрос шёл и камеры нет — это настоящий конец. */
+    static cam_hit_t s_h_last; static uint32_t s_t_last = 0; static bool s_was = false;
+    if (hit)                      { s_h_last = h; s_t_last = now; s_was = true; }
+    else if (!gate && g_cams_on && s_was && (now - s_t_last) <= 1500) { h = s_h_last; hit = true; }
+    else                          s_was = false;
 
     g_cam_active = hit;
     vis(cm_sq, hit); vis(cm_dist, hit); vis(cm_eye, hit);
