@@ -1,4 +1,4 @@
-# HUD для Audi A4 B9 (MLB-Evo) на Waveshare ESP32-S3-Touch-LCD-3.49
+# HUD для Audi A4 B9 (MLB-Evo/MQB) на Waveshare ESP32-S3-Touch-LCD-3.49
 
 Самодельный проекционный дисплей (HUD) с живыми данными автомобиля: скорость,
 передача, круиз и лимитер, Lane Assist, знаки, поворотники, двери и стрелки навигации.

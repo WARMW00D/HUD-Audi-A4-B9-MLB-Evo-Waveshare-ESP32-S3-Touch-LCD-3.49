@@ -1,4 +1,4 @@
-# HUD for Audi A4 B9 (MLB-Evo) on Waveshare ESP32-S3-Touch-LCD-3.49
+# HUD for Audi A4 B9 (MLB-Evo/MQB) on Waveshare ESP32-S3-Touch-LCD-3.49
 
 A DIY head-up display showing live vehicle data: speed, gear, cruise control and
 speed limiter, Lane Assist, traffic signs, turn signals, doors and navigation arrows.
