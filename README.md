@@ -66,7 +66,7 @@ Any field without fresh data is **hidden** instead of showing a stale value
 
 ### Version
 
-Current firmware version: **2.0.1** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 2.0.1: tighter camera tolerances (`HUD_CAM_CROSS_M` 22 m, `HUD_CAM_DIR_DEG` 35°) against cameras of neighbouring roads. 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
+Current firmware version: **2.0.2** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 2.0.2: any pause in speed frames (0x30B) over 200 ms is logged with the TWAI driver counters. 2.0.1: tighter camera tolerances (`HUD_CAM_CROSS_M` 22 m, `HUD_CAM_DIR_DEG` 35°) against cameras of neighbouring roads. 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
 
 ### Screenshots
 

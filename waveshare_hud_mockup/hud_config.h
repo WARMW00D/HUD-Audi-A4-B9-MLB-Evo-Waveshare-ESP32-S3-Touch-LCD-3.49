@@ -5,7 +5,7 @@
 #define HUD_CONFIG_H
 
 /* Версия прошивки: MAJOR.MINOR.PATCH. MAJOR растёт при несовместимых изменениях (формат/логика базы камер, оповещений). */
-#define HUD_FW_VERSION "2.0.1"
+#define HUD_FW_VERSION "2.0.2"
 
 /* ---- Источник данных ----
    HUD_SRC_BLE  — сырые CAN-кадры от сниффера / BLE-гейта по BLE (протокол ACL)

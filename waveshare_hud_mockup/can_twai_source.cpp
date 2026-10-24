@@ -69,7 +69,7 @@ static void twai_task(void *)
     while (!twai_up()) vTaskDelay(pdMS_TO_TICKS(2000));
 
     uint32_t last_rx = 0, last_chk = 0, last_stat = millis();
-    uint32_t frames = 0;
+    uint32_t frames = 0, gap_max = 0;
     bool link = false;
 
     for (;;) {
@@ -85,6 +85,17 @@ static void twai_task(void *)
         uint32_t now = millis();
         if (now - last_chk >= 250) {
             last_chk = now;
+            /* пауза между кадрами скорости (0x30B): длиннее 200 мс — сразу в журнал вместе со счётчиками драйвера,
+               чтобы отличить потерю кадров на шине/в очереди от проблем отрисовки */
+            uint32_t g = hud_data_take_speed_gap_max();
+            if (g > gap_max) gap_max = g;
+            if (g >= 200 && HUD_LOG_TWAI) {
+                twai_status_info_t si = {};
+                twai_get_status_info(&si);
+                arduino_printf("[TWAI] пауза 0x30B %lu мс; очередь: в ожидании %lu, потеряно %lu, переполнение RX %lu; ошибок шины %lu; состояние %d\n",
+                               (unsigned long)g, (unsigned long)si.msgs_to_rx, (unsigned long)si.rx_missed_count,
+                               (unsigned long)si.rx_overrun_count, (unsigned long)si.bus_error_count, (int)si.state);
+            }
             bool up = last_rx && (now - last_rx) < 1000;     /* шина молчит > 1 с — связи нет */
             if (up != link) {
                 link = up;
@@ -110,10 +121,10 @@ static void twai_task(void *)
                 arduino_printf("[TWAI] кадров %lu за 10 с, потеряно (очередь) %lu, переполнение %lu, ошибок шины %lu, макс. пауза 0x30B %lu мс\n",
                               (unsigned long)frames, (unsigned long)st.rx_missed_count,
                               (unsigned long)st.rx_overrun_count, (unsigned long)st.bus_error_count,
-                              (unsigned long)hud_data_take_speed_gap_max());
+                              (unsigned long)gap_max);
             }
             if (HUD_LOG_CAN) hud_data_debug_print(serial_line);
-            frames = 0;
+            frames = 0; gap_max = 0;
         }
     }
 }
