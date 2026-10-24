@@ -415,10 +415,10 @@ static inline uint32_t sig(const uint8_t *d, int start, int len) {
 | Gear number | 0x394 | WBA_03 | WBA_eing_Gang_02 | 24\|4 | 1…9 | ✅ D1…, ⚠️ 8th |
 | Turn signals | 0x366 | Blinkmodi_02 | left / right phase, hazard | 27, 28, 20 | bit | ✅ |
 | Sign | 0x181 | VZE_01 | VZE_Verkehrszeichen_1 | 11\|8 | code; limit = 5 × code (8 → 40, 12 → 60, 16 → 80) | ✅ three points |
-| Sign: suppress / overspeed | 0x181 | VZE_01 | Anzeigeunterdrueck_1 / Warnung_1 | 50 / 35 | bit | ⚠️ |
-| Lane Assist LEDs | 0x397 | LDW_02 | green / yellow LED | 62 / 61 | bit | ⚠️ green does not arrive while driving; not used for colours |
+| Sign: suppress / overspeed | 0x181 | VZE_01 | Anzeigeunterdrueck_1 / Warnung_1 | 50 / 35 | bit | ✅ |
+| Lane Assist LEDs | 0x397 | LDW_02 | green / yellow LED | 62 / 61 | bit | ✅ |
 | LKA lines | 0x397 | LDW_02 | Lernmodus_links / _rechts | 38\|2 / 36\|2 | 0 off, 1 not seen, 2 seen, 3 departure | ✅ 0→1 when switched on |
-| LKA warning | 0x397 | LDW_02 | Warnung_links / _rechts | 56 / 57 | bit | ⚠️ |
+| LKA warning | 0x397 | LDW_02 | Warnung_links / _rechts | 56 / 57 | bit | ✅ |
 | Doors, boot | 0x583 | ZV_02 | ZV_FT/BT/HFS/HBFS/HD_offen | 24…28 | bit | ✅ |
 | Bonnet | 0x65A | BCM_01 | BCM1_MH_Schalter | 31 | bit | ✅ |
 | Acceleration | 0x101 | ESP_02 | ESP_Laengsbeschl | 24\|10 | ×0.03125 − 16 m/s² | ❌ not found on I-CAN (opendbc MLB); fallback is used |
@@ -428,7 +428,7 @@ static inline uint32_t sig(const uint8_t *d, int start, int len) {
 | PSD: position | 0x463 | PSD_05 | Pos_Segment_ID / Pos_Segmentlaenge (remaining) | 0\|6 / 6\|7 | ×2 m | ✅ |
 | PSD: limits | 0x464 | PSD_06 mux 2 | Ges_Segment_ID / Offset / Geschwindigkeit / Typ / Ueberholverbot / Gesetzlich_Kategorie | 3\|6 / 9\|7 / 16\|5 / 21\|2 / 49\|2 / 56\|3 | code → km/h (lower bound), 23 = end | ✅ |
 | Trip computer | 0x17330F10 (29-bit) | BAP_BC, LSG 0x0F, from the cluster | fct 0x18 "since start" / 0x19 long-term: [0–1] consumption ×0.1 L/100 (0xFFFF none), [6–7] distance ×0.1 km, [11] time, min, [15–16] avg speed ×0.1; 0x16 range, km; 0x17 odometer ×0.1 km; 0x1C fuel, % | LE | ✅ drives 0006/0010 |
-| Side Assist | 0x30F | SWA_01 | SWA_Infostufe_SWA_li / _re, SWA_Warnung_SWA_li / _re | 26 / 42, 27 / 43 | bit: car in blind spot / warning | ⚠️ opendbc MLB, check on I-CAN |
+| Side Assist | 0x30F | SWA_01 | SWA_Infostufe_SWA_li / _re, SWA_Warnung_SWA_li / _re | 26 / 42, 27 / 43 | bit: car in blind spot / warning | ✅ |
 | Dimmer wheel | 0x64F | BCM1_04 | BCM1_Stellgroesse_Kl_58s | 25\|7 | 1–100 % | ✅ log 0003 |
 | Light sensor | 0x5A0 | RLS_01 | LS_Helligkeit_FW / LS_Helligkeit_IR / RLS_Vorfeldhelligkeit_Boost / RS_Regenmenge | 8\|10 / 0\|8 / 35\|4 / 24\|4 | ×6 lx (≤1021) / ×400 lx / 0–15 / ×10 % | ✅ drives 0006/0010 |
 | Date and time | 0x6B2 | Diagnose_01 | UH_Jahr / Monat / Tag / Stunde / Minute / Sekunde | 28\|7 / 35\|4 / 39\|5 / 44\|5 / 49\|6 / 55\|6 | year +2000 | ✅ |
@@ -755,7 +755,6 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 - VZE sign codes: the limit is `5 × code`, `vze_table.h` only holds exceptions — more driving
   logs are welcome (the table can be filled by comparing codes with `ACC_Tempolimit`);
 - priority between PSD and VZE signs when they disagree;
-- Side Assist (`SWA_01`) on the car;
 - Lane Assist while driving: lane values 2 and 3, warnings;
 - 8th gear, S and M modes;
 - limiter on kick-down (probably a separate bit); bit 58 of 0x31E — purpose unknown;

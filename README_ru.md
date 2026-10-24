@@ -414,10 +414,10 @@ static inline uint32_t sig(const uint8_t *d, int start, int len) {
 | Номер передачи | 0x394 | WBA_03 | WBA_eing_Gang_02 | 24\|4 | 1…9 | ✅ D1…, ⚠️ 8-я |
 | Поворотники | 0x366 | Blinkmodi_02 | такт лев / прав, аварийка | 27, 28, 20 | бит | ✅ |
 | Знак | 0x181 | VZE_01 | VZE_Verkehrszeichen_1 | 11\|8 | код; ограничение = 5 × код (8 → 40, 12 → 60, 16 → 80) | ✅ три точки |
-| Знак: не показывать / превышение | 0x181 | VZE_01 | Anzeigeunterdrueck_1 / Warnung_1 | 50 / 35 | бит | ⚠️ |
-| Lane Assist | 0x397 | LDW_02 | LED зелёный / жёлтый | 62 / 61 | бит | ⚠️ зелёный в движении не приходит; для цветов не используется |
+| Знак: не показывать / превышение | 0x181 | VZE_01 | Anzeigeunterdrueck_1 / Warnung_1 | 50 / 35 | бит | ✅ |
+| Lane Assist | 0x397 | LDW_02 | LED зелёный / жёлтый | 62 / 61 | бит | ✅ |
 | Линии LKA | 0x397 | LDW_02 | Lernmodus_links / _rechts | 38\|2 / 36\|2 | 0 выкл, 1 не видна, 2 видна, 3 выход | ✅ 0→1 при включении |
-| Предупреждение LKA | 0x397 | LDW_02 | Warnung_links / _rechts | 56 / 57 | бит | ⚠️ |
+| Предупреждение LKA | 0x397 | LDW_02 | Warnung_links / _rechts | 56 / 57 | бит | ✅ |
 | Двери, багажник | 0x583 | ZV_02 | ZV_FT/BT/HFS/HBFS/HD_offen | 24…28 | бит | ✅ |
 | Капот | 0x65A | BCM_01 | BCM1_MH_Schalter | 31 | бит | ✅ |
 | Ускорение | 0x101 | ESP_02 | ESP_Laengsbeschl | 24\|10 | ×0.03125 − 16 м/с² | ❌ на I-CAN не найден (opendbc MLB); используется запасной вариант |
@@ -427,7 +427,7 @@ static inline uint32_t sig(const uint8_t *d, int start, int len) {
 | PSD: позиция | 0x463 | PSD_05 | Pos_Segment_ID / Pos_Segmentlaenge (остаток) | 0\|6 / 6\|7 | ×2 м | ✅ |
 | PSD: ограничения | 0x464 | PSD_06 mux 2 | Ges_Segment_ID / Offset / Geschwindigkeit / Typ / Ueberholverbot / Gesetzlich_Kategorie | 3\|6 / 9\|7 / 16\|5 / 21\|2 / 49\|2 / 56\|3 | код → км/ч (нижняя граница), 23 — конец | ✅ |
 | Бортовой компьютер | 0x17330F10 (29 бит) | BAP_BC, LSG 0x0F, от приборки | fct 0x18 «с момента запуска» / 0x19 долговременная: [0–1] расход ×0.1 л/100 (0xFFFF — нет), [6–7] пробег ×0.1 км, [11] время, мин, [15–16] ср. скорость ×0.1; 0x16 запас хода, км; 0x17 одометр ×0.1 км; 0x1C топливо, % | LE | ✅ поездки 0006/0010 |
-| Side Assist | 0x30F | SWA_01 | SWA_Infostufe_SWA_li / _re, SWA_Warnung_SWA_li / _re | 26 / 42, 27 / 43 | бит: машина в мёртвой зоне / предупреждение | ⚠️ opendbc MLB, на I-CAN проверить |
+| Side Assist | 0x30F | SWA_01 | SWA_Infostufe_SWA_li / _re, SWA_Warnung_SWA_li / _re | 26 / 42, 27 / 43 | бит: машина в мёртвой зоне / предупреждение | ✅ |
 | Колёсико подсветки | 0x64F | BCM1_04 | BCM1_Stellgroesse_Kl_58s | 25\|7 | 1–100 % | ✅ лог 0003 |
 | Датчик света | 0x5A0 | RLS_01 | LS_Helligkeit_FW / LS_Helligkeit_IR / RLS_Vorfeldhelligkeit_Boost / RS_Regenmenge | 8\|10 / 0\|8 / 35\|4 / 24\|4 | ×6 лк (≤1021) / ×400 лк / 0–15 / ×10 % | ✅ поездки 0006/0010 |
 | Дата и время | 0x6B2 | Diagnose_01 | UH_Jahr / Monat / Tag / Stunde / Minute / Sekunde | 28\|7 / 35\|4 / 39\|5 / 44\|5 / 49\|6 / 55\|6 | год +2000 | ✅ |
@@ -752,7 +752,6 @@ python tools/can_bitdiff.py can_log_0001.txt.lzma 0x394 --from 30 --to 60
 - коды знаков VZE: ограничение = `5 × код`, `vze_table.h` хранит только исключения — нужны ещё логи
   поездок (таблицу можно дополнять сопоставлением кода с `ACC_Tempolimit`);
 - приоритет знаков PSD и VZE, когда они расходятся;
-- Side Assist (`SWA_01`) на машине;
 - Lane Assist в движении: значения линий 2 и 3, предупреждения;
 - 8-я передача, режимы S и M;
 - лимитер при кикдауне (вероятно, отдельный бит); бит 58 в 0x31E — назначение неизвестно;
