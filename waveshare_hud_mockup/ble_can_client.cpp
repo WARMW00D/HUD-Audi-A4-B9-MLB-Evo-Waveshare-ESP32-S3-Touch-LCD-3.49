@@ -44,15 +44,24 @@ struct AclRule { uint8_t flags; uint16_t interval_ms; uint32_t id; uint32_t mask
 
 static const AclRule ACL[] = {
     { ACL_PERMIT,           100, 0x30B,      0x7FF      },  /* Kombi_01: скорость      */
+#if HUD_PLATFORM == HUD_PLATFORM_MQB
+    { ACL_PERMIT,           200, 0x2A7,      0x7FF      },  /* MQB: ACC активен (бит 58) — ⚠️ гипотеза */
+    { ACL_PERMIT,           200, 0x30C,      0x7FF      },  /* MQB: ACC_02, заданная скорость 16|6    */
+#else
     { ACL_PERMIT,           200, 0x2A6,      0x7FF      },  /* ACC_12: заданная        */
     { ACL_PERMIT,           200, 0x2A8,      0x7FF      },  /* ACC_14: статус          */
+#endif
     { ACL_PERMIT,           200, 0x31E,      0x7FF      },  /* лимитер (CRC+BZ)        */
+#if HUD_PLATFORM != HUD_PLATFORM_MQB
     { ACL_PERMIT,           100, 0x2A9,      0x7FF      },  /* ACC_15: pre sense (AWV) */
+#endif
     { ACL_PERMIT,           100, 0x5F0,      0x7FF      },  /* Dimmung_01: яркость (колёсико — каждые ~60 мс) */
     { ACL_PERMIT,           100, 0x30F,      0x7FF      },  /* SWA_01: Side Assist (CRC — без ONCHANGE) */
     /* 0x101 ESP_02 убран из списка: бар ускорения берёт производную скорости Kombi_01 */
     { ACL_PERMIT,           200, 0x5A0,      0x7FF      },  /* RLS_01: датчик света (яркость HUD)  */
+#if HUD_PLATFORM != HUD_PLATFORM_MQB
     { ACL_PERMIT,           100, 0x64F,      0x7FF      },  /* BCM1_04: колёсико подсветки         */
+#endif
     /* 0x106 ESP_05 и 0x107 Motor_04 убраны из списка: на I-CAN их нет (поиск 03.10),
        декодер их по-прежнему понимает — для своего трансивера на другой шине */
     { ACL_PERMIT,          150, 0x486,      0x7FF      },  /* NavPos_01: GNSS широта/долгота (камеры) */
@@ -63,7 +72,11 @@ static const AclRule ACL[] = {
     { ACL_PERMIT,           200, 0x394,      0x7FF      },  /* WBA_03: режим и № передачи */
     { ACL_PERMIT,             0, 0x366,      0x7FF      },  /* Blinkmodi_02            */
     { ACL_PERMIT,           500, 0x181,      0x7FF      },  /* VZE_01: знаки           */
+#if HUD_PLATFORM == HUD_PLATFORM_MQB
+    { ACL_PERMIT,             0, 0x397,      0x7FF      },  /* LDW_02: Lane Assist (MQB: зелёный бывает 0.1 с — без фильтра) */
+#else
     { ACL_PERMIT, LKA_MIN_INTERVAL_MS, 0x397, 0x7FF },     /* LDW_02: Lane Assist     */
+#endif
     { ACL_PERMIT,          1000, 0x583,      0x7FF      },  /* ZV_02: двери, багажник  */
     { ACL_PERMIT,             0, 0x65A,      0x7FF      },  /* BCM_01: капот (1 раз/с) */
     { ACL_PERMIT | ACL_EXT,   0, 0x17333210, 0x1FFFFFFE },  /* BAP Nav FSG ..10/..11   */

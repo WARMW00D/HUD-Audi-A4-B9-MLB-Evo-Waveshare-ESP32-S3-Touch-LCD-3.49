@@ -5,7 +5,7 @@
 #define HUD_CONFIG_H
 
 /* Версия прошивки: MAJOR.MINOR.PATCH. MAJOR растёт при несовместимых изменениях (формат/логика базы камер, оповещений). */
-#define HUD_FW_VERSION "2.1.0"
+#define HUD_FW_VERSION "2.1.1"
 
 /* ---- Источник данных ----
    HUD_SRC_BLE  — сырые CAN-кадры от сниффера / BLE-гейта по BLE (протокол ACL)
@@ -22,12 +22,19 @@
 #define HUD_SRC_AUTO         3
 
 /* ---- Платформа автомобиля (карта CAN-сигналов) ----
-   HUD_PLATFORM_MLB — Audi A4 B9 MLB-Evo (по умолчанию).
-   HUD_PLATFORM_MQB — MQB (проверено на Skoda Octavia A7 с Virtual Cockpit): ACC берётся из 0x2A7/0x30C,
-                      кадров ACC_12/ACC_14 и колёсика подсветки (0x64F) на шине нет. */
-#define HUD_PLATFORM_MLB     0
-#define HUD_PLATFORM_MQB     1
-#define HUD_PLATFORM         HUD_PLATFORM_MLB
+   HUD_PLATFORM_MLB_EVO — Audi A4 B9 и другие MLB-Evo (I-CAN, 500 кбит/с), по умолчанию.
+   HUD_PLATFORM_MQB     — VAG MQB (проверено только на Skoda Octavia A7 до рестайлинга с Virtual Cockpit):
+                          ACC берётся из 0x2A7/0x30C; кадров ACC_12/ACC_14, ACC_15 и колёсика 0x64F на шине нет.
+   Выбор: здесь или флагом сборки -DHUD_PLATFORM=HUD_PLATFORM_MQB. Без явного выбора сборка идёт как A4. */
+#define HUD_PLATFORM_MLB_EVO 1
+#define HUD_PLATFORM_MQB     2
+/* ВНИМАНИЕ: по умолчанию выбрана MLB-Evo (Audi A4 B9 и родственные). Если у вас MQB (Octavia A7, Golf 7 и др.),
+   замените значение на HUD_PLATFORM_MQB — иначе ACC, подсветка и часть сигналов не заработают:
+   на MQB другие кадры ACC, а колёсика подсветки и pre sense на шине нет.
+   Please note: the default is MLB-Evo (Audi A4 B9). On an MQB car set HUD_PLATFORM_MQB, or ACC will not work. */
+#ifndef HUD_PLATFORM
+#define HUD_PLATFORM         HUD_PLATFORM_MLB_EVO   /* ← по умолчанию MLB-Evo / default: MLB-Evo */
+#endif
 #define HUD_DATA_SOURCE      HUD_SRC_AUTO
 #define HUD_AUTO_CAN_HOLD_MS 1000   /* AUTO: столько без кадров по CAN — переходим на BLE */
 

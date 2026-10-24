@@ -487,7 +487,11 @@ void hud_data_fake_doors(uint8_t mask)
 }
 
 /* ---------- диагностика: счётчики кадров по ID ---------- */
+#if HUD_PLATFORM == HUD_PLATFORM_MQB
+static const uint16_t s_dbg_ids[] = { 0x30B, 0x2A7, 0x30C, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x5F0, 0x5A0, 0x30F, 0x101, 0x6B2, 0x462, 0x463, 0x464 };
+#else
 static const uint16_t s_dbg_ids[] = { 0x30B, 0x2A6, 0x2A8, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x2A9, 0x5F0, 0x5A0, 0x64F, 0x30F, 0x101, 0x6B2, 0x462, 0x463, 0x464 };
+#endif
 #define DBG_N (sizeof(s_dbg_ids) / sizeof(s_dbg_ids[0]))
 static uint32_t s_dbg_cnt[DBG_N];
 static uint8_t  s_dbg_last[DBG_N][8];
@@ -571,6 +575,21 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
     case 0x107: /* Motor_04 — ⚠️ из opendbc MLB, на I-CAN не проверено */
         fuel_update((uint16_t)sig(d, 48, 15));
         break;
+#if HUD_PLATFORM == HUD_PLATFORM_MQB
+    case 0x2A7: /* MQB: ACC активен — бит 58 (⚠️ гипотеза по совпадению интервалов, Octavia A7) */
+        s_data.acc_status = sig(d, 58, 1) ? 3 : 2;           /* 3 активен, 2 ожидание */
+        touch(S_ACC);
+        break;
+    case 0x30C: { /* MQB: ACC_02 — заданная скорость 16|6: км/ч = 5·v+5, 63 = не задана */
+        uint32_t v = sig(d, 16, 6);
+        s_data.acc_set_raw = (v == 63) ? 0x3FF : (uint16_t)((((v * 5u + 5u) * 100u) + 16u) / 32u);   /* км/ч -> ×0.32 */
+        /* Машина впереди: 45|2 — как в ACC_12 на A4 (в активном ACC на Октавии 94 % кадров = 1,
+           остальные 0; ⚠️ по совпадению с раскладкой A4, не по документации). Зазор 37|3. */
+        s_data.acc_object = sig(d, 45, 2);
+        s_data.acc_gap    = sig(d, 37, 3);
+        touch(S_ACC);
+        break; }
+#else
     case 0x2A6: /* ACC_12 */
         s_data.acc_set_raw    = sig(d, 12, 10);
         s_data.acc_tempolimit = sig(d, 0, 5);
@@ -581,25 +600,11 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
         touch(S_ACC);
         touch(S_JAM);
         break;
-#if HUD_PLATFORM == HUD_PLATFORM_MQB
-    /* MQB (Skoda Octavia A7 с Virtual Cockpit, логи 24.10): кадров ACC_12/ACC_14 на шине нет.
-       0x2A7 бит 58 — ACC активен (по интервалам включения; ⚠️ пока гипотеза).
-       0x30C (ACC_02) биты 16|6 — заданная скорость: 5 × значение + 5 км/ч, 63 = не задана
-       (держится и когда ACC неактивен). Дистанция, цель впереди, пробка и удержание в полосе — не расшифрованы. */
-    case 0x2A7:
-        s_data.acc_status = sig(d, 58, 1) ? 3 : 2;
-        touch(S_ACC);
-        break;
-    case 0x30C: {
-        uint32_t v = sig(d, 16, 6);
-        s_data.acc_set_raw = (v == 63) ? 0x3FF : (uint16_t)(((v * 5u + 5u) * 100u + 16u) / 32u);   /* км/ч → ×0.32 */
-        touch(S_ACC);
-        break; }
-#endif
     case 0x2A8: /* ACC_14 */
         s_data.acc_status = sig(d, 16, 3);
         touch(S_ACC);
         break;
+#endif
     case 0x394: /* WBA_03 */
         s_data.gear = sig(d, 12, 4);
         touch(S_GEAR);
@@ -637,16 +642,23 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
         s_data.limiter_raw = sig(d, 12, 10);
         touch(S_LIM);
         break;
+#if HUD_PLATFORM != HUD_PLATFORM_MQB
     case 0x2A9: /* ACC_15: AWV (Audi pre sense front) — ⚠️ раскладка из opendbc MQB,
                    на I-CAN MLB-Evo не проверено */
         s_data.awv_warn = sig(d, 16, 3);
         touch(S_AWV);
         break;
+#endif
     case 0x5F0: /* Dimmung_01 — DI_KL_58xd 0|8 (%), Nachtdesign 15 — проверено по логу 0003 */
         s_data.dim_raw   = sig(d, 0, 8);
         s_data.dim_pct   = sig(d, 8, 7);
         s_data.dim_night = sig(d, 15, 1);
         touch(S_DIM);
+#if HUD_PLATFORM == HUD_PLATFORM_MQB
+        /* MQB: колёсика 0x64F на шине нет; регулятор подсветки — байт 2 (16|8), в логе Октавии
+           стоял на 100 при выключенных фарах (⚠️ подтверждено водителем, движение не записано) */
+        { uint8_t w = sig(d, 16, 8); if (w >= 1 && w <= 100) { s_data.wheel_pct = w; touch(S_WHEEL); } }
+#endif
         break;
     case 0x5A0: /* RLS_01 — датчик света и дождя (K-матрица I-CAN, поездки 0006/0010) */
         s_data.rls_ir    = sig(d, 0, 8);
@@ -675,9 +687,11 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
         s_data.swa_warn = (uint8_t)(sig(d, 27, 1) | (sig(d, 43, 1) << 1));   /* Warnung_SWA_li / _re   */
         touch(S_SWA);
         break;
+#if HUD_PLATFORM != HUD_PLATFORM_MQB
     case 0x64F: /* BCM1_04 — положение колёсика подсветки (лог 0003) */
         { uint8_t w = sig(d, 25, 7); if (w >= 1 && w <= 100) { s_data.wheel_pct = w; touch(S_WHEEL); } }
         break;
+#endif
     case 0x6B2: /* Diagnose_01: дата и время */
         decode_clock(d);
         break;

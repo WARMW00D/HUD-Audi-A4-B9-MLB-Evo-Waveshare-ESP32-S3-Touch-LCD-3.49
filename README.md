@@ -66,7 +66,9 @@ Any field without fresh data is **hidden** instead of showing a stale value
 
 ### Version
 
-Current firmware version: **2.1.0** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 2.1.0: `HUD_PLATFORM` option in `hud_config.h` — `HUD_PLATFORM_MQB` adds the MQB signal map (ACC from 0x2A7 / 0x30C), checked on a Skoda Octavia A7 with Virtual Cockpit; ACC_12/ACC_14, the lighting wheel (0x64F) and the ACC target, distance and lane-keeping fields are not available there yet. 2.0.4: 2.0.4: a camera sign is no longer replaced for a moment by a regular road sign when the camera conditions (heading, HDOP, speed) briefly drop out — the last camera is held for 1.5 s. 2.0.3: speed no longer blinks out on hard braking/acceleration — USB log output cannot block CAN reception any more, RX queue 512 frames, CAN task priority raised, speed is kept for 2 s after the last frame. 2.0.2: any pause in speed frames (0x30B) over 200 ms is logged with the TWAI driver counters. 2.0.1: tighter camera tolerances (`HUD_CAM_CROSS_M` 22 m, `HUD_CAM_DIR_DEG` 35°) against cameras of neighbouring roads. 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
+Current firmware version: **2.1.1** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 2.1.1: MQB platform map aligned with the SuperMini HUD — `HUD_PLATFORM_MLB_EVO` / `HUD_PLATFORM_MQB`, lead vehicle and gap from 0x30C, lighting wheel from 0x5F0, MQB-specific BLE ACL. 2.1.0: `HUD_PLATFORM` option in `hud_config.h` — `HUD_PLATFORM_MQB` adds the MQB signal map (ACC from 0x2A7 / 0x30C), checked on a Skoda Octavia A7 with Virtual Cockpit; ACC_12/ACC_14, the lighting wheel (0x64F) and the ACC target, distance and lane-keeping fields are not available there yet. 2.0.4: 2.0.4: a camera sign is no longer replaced for a moment by a regular road sign when the camera conditions (heading, HDOP, speed) briefly drop out — the last camera is held for 1.5 s. 2.0.3: speed no longer blinks out on hard braking/acceleration — USB log output cannot block CAN reception any more, RX queue 512 frames, CAN task priority raised, speed is kept for 2 s after the last frame. 2.0.2: any pause in speed frames (0x30B) over 200 ms is logged with the TWAI driver counters. 2.0.1: tighter camera tolerances (`HUD_CAM_CROSS_M` 22 m, `HUD_CAM_DIR_DEG` 35°) against cameras of neighbouring roads. 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
+
+> **Which platform is built by default?** **MLB-Evo (Audi A4 B9)**. This is the car the project was developed on, so the default map is the A4 one. If your car is **MQB** (checked on a Skoda Octavia A7), set `#define HUD_PLATFORM HUD_PLATFORM_MQB` in `hud_config.h` — see [Platform](#platform-hud_platform). Without it ACC will not show: the MQB car sends different frames.
 
 ### Screenshots
 
@@ -750,14 +752,32 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 
 ### Platform (`HUD_PLATFORM`)
 
-`HUD_PLATFORM_MLB` (default) is the Audi A4 B9 MLB-Evo map described in this document. `HUD_PLATFORM_MQB` was checked on logs from a Skoda Octavia A7 pre-facelift with a retrofitted Virtual Cockpit (I-CAN side of the gateway, 500 kbit/s); most frames (speed, ESP, gear, turn signals, VZE, Lane Assist, GNSS, light sensor, Side Assist) are the same as on MLB. Differences:
+`HUD_PLATFORM_MLB_EVO` (default) is the Audi A4 B9 MLB-Evo map described in this document. `HUD_PLATFORM_MQB` is selected with `#define HUD_PLATFORM HUD_PLATFORM_MQB` in `hud_config.h` or the build flag `-DHUD_PLATFORM=HUD_PLATFORM_MQB`; without an explicit choice the firmware is built for the A4. It was checked only on logs from a Skoda Octavia A7 pre-facelift with a retrofitted Virtual Cockpit (I-CAN side of the gateway, 500 kbit/s). Speed, gear, turn signals, VZE signs, Lane Assist, GNSS, Side Assist, doors and the light sensor use the same frames as on MLB. Differences:
 
-| What | Frame | Signal | start\|len | Scale / values | Checked |
-|---|---|---|---|---|---|
-| ACC active | 0x2A7 | — | 58\|1 | 1 = active | ⚠️ from engagement intervals in the logs |
-| ACC set speed | 0x30C | ACC_02 | 16\|6 | 5 × value + 5 km/h, 63 = not set (kept while ACC is inactive) | ✅ |
-| ACC target, distance, lane keeping, traffic jam | — | — | — | not decoded yet | ❌ |
-| Lighting wheel | 0x64F | — | — | not present on the bus | ❌ |
+| What | MLB-Evo (A4) | MQB (Octavia A7) | Status on MQB |
+|---|---|---|---|
+| ACC active | 0x2A8, 16\|3 | 0x2A7, bit 58 (1 → active, 0 → standby) | ⚠️ from engagement intervals in the logs |
+| ACC set speed | 0x2A6, 12\|10, ×0.32 km/h | 0x30C (ACC_02), 16\|6: 5 × value + 5 km/h, 63 = not set (kept while ACC is inactive) | ✅ |
+| Lead vehicle | 0x2A6, 45\|2 | 0x30C, 45\|2 | ⚠️ same layout as the A4, not verified on a real series |
+| ACC time gap | 0x2A6, 37\|3 | 0x30C, 37\|3 | ⚠️ constantly 1 in the logs |
+| Pre sense (ACC_15) | 0x2A9 | not on the bus | disabled |
+| Lighting wheel | 0x64F, 25\|7 | 0x5F0 byte 2 (16\|8), stands at 100 | ⚠️ confirmed as the lighting control by the driver, movement not recorded |
+| Lane keeping inside ACC, traffic jam assist | 0x2A6 | not decoded | ❌ |
+
+On MQB the Lane Assist rule (0x397) is used without an interval in the BLE ACL: the green flag can last as little as 0.1 s.
+
+**Screenshots on the MQB map** (Skoda Octavia A7 logs rendered by the real firmware code):
+
+![ACC with a lead car, set speed 60](docs/screens/hud_mqb_01_acc_lead_car_60.png)
+![ACC active, no target](docs/screens/hud_mqb_02_acc_active_no_target.png)
+![ACC standby (grey), over the limit: red outline](docs/screens/hud_mqb_03_acc_standby_overspeed.png)
+![Left turn signal, ACC with a lead car](docs/screens/hud_mqb_04_left_turn_signal_acc.png)
+![Mode E, ACC stopped, fork](docs/screens/hud_mqb_05_mode_e_acc_stop_fork.png)
+![U-turn and Side Assist warning](docs/screens/hud_mqb_06_uturn_side_assist.png)
+![Right turn and Side Assist](docs/screens/hud_mqb_07_right_turn_side_assist.png)
+![ACC on a straight road, 600 m to the next manoeuvre](docs/screens/hud_mqb_08_acc_straight_600m.png)
+![U-turn, ACC, sign 90](docs/screens/hud_mqb_09_uturn_acc_sign_90.png)
+![Fork, over the limit, sign 50](docs/screens/hud_mqb_10_fork_overspeed_sign_50.png)
 
 ## Unverified items and roadmap
 
