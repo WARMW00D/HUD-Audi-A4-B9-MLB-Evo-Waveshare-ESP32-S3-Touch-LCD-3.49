@@ -404,11 +404,11 @@ static inline uint32_t sig(const uint8_t *d, int start, int len) {
 |---|---|---|---|---|---|---|
 | Speed | 0x30B | Kombi_01 | KBI_V_Digital | 24\|9 | ×1 km/h | ✅ |
 | ACC set speed | 0x2A6 | ACC_12 | ACC_Wunschgeschw_02 | 12\|10 | ×0.32 km/h, 1023 = none | ✅ |
-| Limit from ACC | 0x2A6 | ACC_12 | ACC_Tempolimit | 0\|5 | table in `vze_table.h` | ⚠️ |
-| Lead target | 0x2A6 | ACC_12 | ACC_Relevantes_Objekt_02 | 45\|2 | 0 none, 1 vehicle, 2 warning, 3 passive | ⚠️ |
-| ACC distance | 0x2A6 | ACC_12 | ACC_Gesetzte_Zeitluecke | 37\|3 | 1…5 (decoded, not drawn) | ⚠️ |
-| Lane centering | 0x2A6 | ACC_12 | ACA_Querfuehrung | 7\|2 | 2 = active | ⚠️ |
-| Traffic jam assist | 0x2A6 | ACC_12 | STA_Primaeranz | 62\|2 | 1 ready, 2 active, 3 warning | ⚠️ |
+| Limit from ACC | 0x2A6 | ACC_12 | ACC_Tempolimit | 0\|5 | table in `vze_table.h` | ✅ |
+| Lead target | 0x2A6 | ACC_12 | ACC_Relevantes_Objekt_02 | 45\|2 | 0 none, 1 vehicle, 2 warning, 3 passive | ✅ |
+| ACC distance | 0x2A6 | ACC_12 | ACC_Gesetzte_Zeitluecke | 37\|3 | 1…5 (decoded, not drawn) | ✅ |
+| Lane centering | 0x2A6 | ACC_12 | ACA_Querfuehrung | 7\|2 | 2 = active | ✅ |
+| Traffic jam assist | 0x2A6 | ACC_12 | STA_Primaeranz | 62\|2 | 1 ready, 2 active, 3 warning | ✅ |
 | ACC status | 0x2A8 | ACC_14 | ACC_Status_Anzeige | 16\|3 | 2 standby, 3 active, 4 driver override | ✅ |
 | Speed limiter | 0x31E | — (not in K-matrix) | set speed | 12\|10 | ×0.32 km/h, **1022 off**, 1023 on without speed | ✅ parked |
 | Gear mode | 0x394 | WBA_03 | WBA_Fahrstufe_02 | 12\|4 | 1 P, 2 R, 3 N, 4 D, 5 S, 6 M, 8 E, 12 Offroad | ✅ |
@@ -431,9 +431,9 @@ static inline uint32_t sig(const uint8_t *d, int start, int len) {
 | Side Assist | 0x30F | SWA_01 | SWA_Infostufe_SWA_li / _re, SWA_Warnung_SWA_li / _re | 26 / 42, 27 / 43 | bit: car in blind spot / warning | ⚠️ opendbc MLB, check on I-CAN |
 | Dimmer wheel | 0x64F | BCM1_04 | BCM1_Stellgroesse_Kl_58s | 25\|7 | 1–100 % | ✅ log 0003 |
 | Light sensor | 0x5A0 | RLS_01 | LS_Helligkeit_FW / LS_Helligkeit_IR / RLS_Vorfeldhelligkeit_Boost / RS_Regenmenge | 8\|10 / 0\|8 / 35\|4 / 24\|4 | ×6 lx (≤1021) / ×400 lx / 0–15 / ×10 % | ✅ drives 0006/0010 |
-| Date and time | 0x6B2 | Diagnose_01 | UH_Jahr / Monat / Tag / Stunde / Minute / Sekunde | 28\|7 / 35\|4 / 39\|5 / 44\|5 / 49\|6 / 55\|6 | year +2000 | ⚠️ opendbc; frame present on I-CAN |
-| Fuel | 0x107 | Motor_04 | MO_KVS (counter, µL) | 48\|15 | wraps at 32768 | ❌ not found on I-CAN (opendbc MLB) |
-| Pre sense | 0x2A9 | ACC_15 | AWV_Warnung | 16\|3 | 0 none, 1 latent, 2 warning, 3 acute, 4 braking, 5 take over, 6 turning | ⚠️ from opendbc MQB |
+| Date and time | 0x6B2 | Diagnose_01 | UH_Jahr / Monat / Tag / Stunde / Minute / Sekunde | 28\|7 / 35\|4 / 39\|5 / 44\|5 / 49\|6 / 55\|6 | year +2000 | ✅ |
+| Fuel | 0x107 | Motor_04 | MO_KVS (counter, µL) | 48\|15 | wraps at 32768 | ✅ |
+| Pre sense | 0x2A9 | ACC_15 | AWV_Warnung | 16\|3 | 0 none, 1 latent, 2 warning, 3 acute, 4 braking, 5 take over, 6 turning | ✅ |
 | Brightness | 0x5F0 | Dimmung_01 | DI_KL_58xd / DI_Display_Nachtdesign | 0\|8 / 15 | final display brightness 10–100 % (254 Init, 255 error) / night design | ✅ log 0003, dimmer wheel |
 
 `LDW_02`: **do not use** bits 12–15 (`LDW_Gong`, `LDW_SW_Warnung_*`) — on this car byte 1
@@ -756,7 +756,6 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
   logs are welcome (the table can be filled by comparing codes with `ACC_Tempolimit`);
 - priority between PSD and VZE signs when they disagree;
 - Side Assist (`SWA_01`) on the car;
-- `ACC_Tempolimit`, lead target, traffic jam assist, ACA lane centering;
 - Lane Assist while driving: lane values 2 and 3, warnings;
 - 8th gear, S and M modes;
 - limiter on kick-down (probably a separate bit); bit 58 of 0x31E — purpose unknown;

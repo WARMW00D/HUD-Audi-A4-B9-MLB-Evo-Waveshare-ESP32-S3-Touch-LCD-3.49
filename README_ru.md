@@ -403,11 +403,11 @@ static inline uint32_t sig(const uint8_t *d, int start, int len) {
 |---|---|---|---|---|---|---|
 | Скорость | 0x30B | Kombi_01 | KBI_V_Digital | 24\|9 | ×1 км/ч | ✅ |
 | ACC заданная | 0x2A6 | ACC_12 | ACC_Wunschgeschw_02 | 12\|10 | ×0.32 км/ч, 1023 = нет | ✅ |
-| Лимит из ACC | 0x2A6 | ACC_12 | ACC_Tempolimit | 0\|5 | таблица в `vze_table.h` | ⚠️ |
-| Цель впереди | 0x2A6 | ACC_12 | ACC_Relevantes_Objekt_02 | 45\|2 | 0 нет, 1 машина, 2 предупр., 3 пассив | ⚠️ |
-| Дистанция ACC | 0x2A6 | ACC_12 | ACC_Gesetzte_Zeitluecke | 37\|3 | 1…5 (декодируется, не рисуется) | ⚠️ |
-| Удержание в полосе | 0x2A6 | ACC_12 | ACA_Querfuehrung | 7\|2 | 2 = активно | ⚠️ |
-| Режим пробки | 0x2A6 | ACC_12 | STA_Primaeranz | 62\|2 | 1 готов, 2 активен, 3 предупр. | ⚠️ |
+| Лимит из ACC | 0x2A6 | ACC_12 | ACC_Tempolimit | 0\|5 | таблица в `vze_table.h` | ✅ |
+| Цель впереди | 0x2A6 | ACC_12 | ACC_Relevantes_Objekt_02 | 45\|2 | 0 нет, 1 машина, 2 предупр., 3 пассив | ✅ |
+| Дистанция ACC | 0x2A6 | ACC_12 | ACC_Gesetzte_Zeitluecke | 37\|3 | 1…5 (декодируется, не рисуется) | ✅ |
+| Удержание в полосе | 0x2A6 | ACC_12 | ACA_Querfuehrung | 7\|2 | 2 = активно | ✅ |
+| Режим пробки | 0x2A6 | ACC_12 | STA_Primaeranz | 62\|2 | 1 готов, 2 активен, 3 предупр. | ✅ |
 | Статус ACC | 0x2A8 | ACC_14 | ACC_Status_Anzeige | 16\|3 | 2 пассив, 3 активен, 4 превышение водителем | ✅ |
 | Лимитер | 0x31E | — (нет в K-матрице) | заданная скорость | 12\|10 | ×0.32 км/ч, **1022 выкл**, 1023 вкл без скорости | ✅ на стоянке |
 | Режим КП | 0x394 | WBA_03 | WBA_Fahrstufe_02 | 12\|4 | 1 P, 2 R, 3 N, 4 D, 5 S, 6 M, 8 E, 12 Offroad | ✅ |
@@ -430,9 +430,9 @@ static inline uint32_t sig(const uint8_t *d, int start, int len) {
 | Side Assist | 0x30F | SWA_01 | SWA_Infostufe_SWA_li / _re, SWA_Warnung_SWA_li / _re | 26 / 42, 27 / 43 | бит: машина в мёртвой зоне / предупреждение | ⚠️ opendbc MLB, на I-CAN проверить |
 | Колёсико подсветки | 0x64F | BCM1_04 | BCM1_Stellgroesse_Kl_58s | 25\|7 | 1–100 % | ✅ лог 0003 |
 | Датчик света | 0x5A0 | RLS_01 | LS_Helligkeit_FW / LS_Helligkeit_IR / RLS_Vorfeldhelligkeit_Boost / RS_Regenmenge | 8\|10 / 0\|8 / 35\|4 / 24\|4 | ×6 лк (≤1021) / ×400 лк / 0–15 / ×10 % | ✅ поездки 0006/0010 |
-| Дата и время | 0x6B2 | Diagnose_01 | UH_Jahr / Monat / Tag / Stunde / Minute / Sekunde | 28\|7 / 35\|4 / 39\|5 / 44\|5 / 49\|6 / 55\|6 | год +2000 | ⚠️ opendbc; кадр есть на I-CAN |
-| Расход | 0x107 | Motor_04 | MO_KVS (счётчик, мкл) | 48\|15 | переполнение на 32768 | ❌ на I-CAN не найден (opendbc MLB) |
-| Pre sense | 0x2A9 | ACC_15 | AWV_Warnung | 16\|3 | 0 нет, 1 латентное, 2 предупр., 3 острое, 4 торможение, 5 перехватите управление, 6 при повороте | ⚠️ из opendbc MQB |
+| Дата и время | 0x6B2 | Diagnose_01 | UH_Jahr / Monat / Tag / Stunde / Minute / Sekunde | 28\|7 / 35\|4 / 39\|5 / 44\|5 / 49\|6 / 55\|6 | год +2000 | ✅ |
+| Расход | 0x107 | Motor_04 | MO_KVS (счётчик, мкл) | 48\|15 | переполнение на 32768 | ✅ |
+| Pre sense | 0x2A9 | ACC_15 | AWV_Warnung | 16\|3 | 0 нет, 1 латентное, 2 предупр., 3 острое, 4 торможение, 5 перехватите управление, 6 при повороте | ✅ |
 | Яркость | 0x5F0 | Dimmung_01 | DI_KL_58xd / DI_Display_Nachtdesign | 0\|8 / 15 | итоговая яркость дисплеев 10–100 % (254 Init, 255 ошибка) / ночной дизайн | ✅ лог 0003, колёсико |
 
 `LDW_02`: биты 12–15 (`LDW_Gong`, `LDW_SW_Warnung_*`) **не использовать** — на этой машине
@@ -753,7 +753,6 @@ python tools/can_bitdiff.py can_log_0001.txt.lzma 0x394 --from 30 --to 60
   поездок (таблицу можно дополнять сопоставлением кода с `ACC_Tempolimit`);
 - приоритет знаков PSD и VZE, когда они расходятся;
 - Side Assist (`SWA_01`) на машине;
-- `ACC_Tempolimit`, цель впереди, режим пробки, удержание в полосе ACA;
 - Lane Assist в движении: значения линий 2 и 3, предупреждения;
 - 8-я передача, режимы S и M;
 - лимитер при кикдауне (вероятно, отдельный бит); бит 58 в 0x31E — назначение неизвестно;
