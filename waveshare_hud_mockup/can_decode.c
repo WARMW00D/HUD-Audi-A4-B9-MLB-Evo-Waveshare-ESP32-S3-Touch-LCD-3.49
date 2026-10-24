@@ -581,6 +581,21 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
         touch(S_ACC);
         touch(S_JAM);
         break;
+#if HUD_PLATFORM == HUD_PLATFORM_MQB
+    /* MQB (Skoda Octavia A7 с Virtual Cockpit, логи 24.10): кадров ACC_12/ACC_14 на шине нет.
+       0x2A7 бит 58 — ACC активен (по интервалам включения; ⚠️ пока гипотеза).
+       0x30C (ACC_02) биты 16|6 — заданная скорость: 5 × значение + 5 км/ч, 63 = не задана
+       (держится и когда ACC неактивен). Дистанция, цель впереди, пробка и удержание в полосе — не расшифрованы. */
+    case 0x2A7:
+        s_data.acc_status = sig(d, 58, 1) ? 3 : 2;
+        touch(S_ACC);
+        break;
+    case 0x30C: {
+        uint32_t v = sig(d, 16, 6);
+        s_data.acc_set_raw = (v == 63) ? 0x3FF : (uint16_t)(((v * 5u + 5u) * 100u + 16u) / 32u);   /* км/ч → ×0.32 */
+        touch(S_ACC);
+        break; }
+#endif
     case 0x2A8: /* ACC_14 */
         s_data.acc_status = sig(d, 16, 3);
         touch(S_ACC);

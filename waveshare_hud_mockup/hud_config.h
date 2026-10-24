@@ -5,7 +5,7 @@
 #define HUD_CONFIG_H
 
 /* Версия прошивки: MAJOR.MINOR.PATCH. MAJOR растёт при несовместимых изменениях (формат/логика базы камер, оповещений). */
-#define HUD_FW_VERSION "2.0.4"
+#define HUD_FW_VERSION "2.1.0"
 
 /* ---- Источник данных ----
    HUD_SRC_BLE  — сырые CAN-кадры от сниффера / BLE-гейта по BLE (протокол ACL)
@@ -20,6 +20,14 @@
 #define HUD_SRC_TWAI         1
 #define HUD_SRC_FAKE         2
 #define HUD_SRC_AUTO         3
+
+/* ---- Платформа автомобиля (карта CAN-сигналов) ----
+   HUD_PLATFORM_MLB — Audi A4 B9 MLB-Evo (по умолчанию).
+   HUD_PLATFORM_MQB — MQB (проверено на Skoda Octavia A7 с Virtual Cockpit): ACC берётся из 0x2A7/0x30C,
+                      кадров ACC_12/ACC_14 и колёсика подсветки (0x64F) на шине нет. */
+#define HUD_PLATFORM_MLB     0
+#define HUD_PLATFORM_MQB     1
+#define HUD_PLATFORM         HUD_PLATFORM_MLB
 #define HUD_DATA_SOURCE      HUD_SRC_AUTO
 #define HUD_AUTO_CAN_HOLD_MS 1000   /* AUTO: столько без кадров по CAN — переходим на BLE */
 

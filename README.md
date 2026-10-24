@@ -66,7 +66,7 @@ Any field without fresh data is **hidden** instead of showing a stale value
 
 ### Version
 
-Current firmware version: **2.0.4** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 2.0.4: a camera sign is no longer replaced for a moment by a regular road sign when the camera conditions (heading, HDOP, speed) briefly drop out — the last camera is held for 1.5 s. 2.0.3: speed no longer blinks out on hard braking/acceleration — USB log output cannot block CAN reception any more, RX queue 512 frames, CAN task priority raised, speed is kept for 2 s after the last frame. 2.0.2: any pause in speed frames (0x30B) over 200 ms is logged with the TWAI driver counters. 2.0.1: tighter camera tolerances (`HUD_CAM_CROSS_M` 22 m, `HUD_CAM_DIR_DEG` 35°) against cameras of neighbouring roads. 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
+Current firmware version: **2.1.0** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 2.1.0: `HUD_PLATFORM` option in `hud_config.h` — `HUD_PLATFORM_MQB` adds the MQB signal map (ACC from 0x2A7 / 0x30C), checked on a Skoda Octavia A7 with Virtual Cockpit; ACC_12/ACC_14, the lighting wheel (0x64F) and the ACC target, distance and lane-keeping fields are not available there yet. 2.0.4: 2.0.4: a camera sign is no longer replaced for a moment by a regular road sign when the camera conditions (heading, HDOP, speed) briefly drop out — the last camera is held for 1.5 s. 2.0.3: speed no longer blinks out on hard braking/acceleration — USB log output cannot block CAN reception any more, RX queue 512 frames, CAN task priority raised, speed is kept for 2 s after the last frame. 2.0.2: any pause in speed frames (0x30B) over 200 ms is logged with the TWAI driver counters. 2.0.1: tighter camera tolerances (`HUD_CAM_CROSS_M` 22 m, `HUD_CAM_DIR_DEG` 35°) against cameras of neighbouring roads. 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
 
 ### Screenshots
 
@@ -747,6 +747,17 @@ several times (noting the times), then look for bits that change at those moment
 The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 
 ---
+
+### Platform (`HUD_PLATFORM`)
+
+`HUD_PLATFORM_MLB` (default) is the Audi A4 B9 MLB-Evo map described in this document. `HUD_PLATFORM_MQB` was checked on logs from a Skoda Octavia A7 pre-facelift with a retrofitted Virtual Cockpit (I-CAN side of the gateway, 500 kbit/s); most frames (speed, ESP, gear, turn signals, VZE, Lane Assist, GNSS, light sensor, Side Assist) are the same as on MLB. Differences:
+
+| What | Frame | Signal | start\|len | Scale / values | Checked |
+|---|---|---|---|---|---|
+| ACC active | 0x2A7 | — | 58\|1 | 1 = active | ⚠️ from engagement intervals in the logs |
+| ACC set speed | 0x30C | ACC_02 | 16\|6 | 5 × value + 5 km/h, 63 = not set (kept while ACC is inactive) | ✅ |
+| ACC target, distance, lane keeping, traffic jam | — | — | — | not decoded yet | ❌ |
+| Lighting wheel | 0x64F | — | — | not present on the bus | ❌ |
 
 ## Unverified items and roadmap
 
