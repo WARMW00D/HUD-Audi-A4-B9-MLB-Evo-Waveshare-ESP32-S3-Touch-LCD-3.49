@@ -21,10 +21,12 @@
   <text x="32" y="105" class="t">+12 В ACC</text>
   <text x="32" y="123" class="s">(под ключом)</text>
   <text x="32" y="165" class="t" dy="5">Масса кузова</text>
-  <text x="32" y="300" class="t" dy="5">CAN H</text>
-  <text x="32" y="320" class="s">MQB: оранж.-зелёный</text>
-  <text x="32" y="340" class="t" dy="5">CAN L</text>
-  <text x="32" y="360" class="s">MQB: оранж.-коричн.</text>
+  <text x="32" y="284" class="t" dy="5">CAN H</text>
+  <text x="32" y="302" class="s">MLB-Evo: фиолетовый</text>
+  <text x="32" y="314" class="s">MQB: оранж.-зелёный</text>
+  <text x="32" y="334" class="t" dy="5">CAN L</text>
+  <text x="32" y="352" class="s">MLB-Evo: оранж.-коричн.</text>
+  <text x="32" y="364" class="s">MQB: оранж.-коричн.</text>
   <text x="32" y="415" class="s">MLB-Evo: Infotainment CAN</text>
   <text x="32" y="431" class="s">MQB: Comfort CAN</text>
   <text x="32" y="447" class="s">витая пара до</text>
