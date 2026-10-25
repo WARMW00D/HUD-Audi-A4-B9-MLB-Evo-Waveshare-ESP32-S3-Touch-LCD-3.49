@@ -19,6 +19,10 @@
 
 #define LCD_BIT_PER_PIXEL (16)
 
+#ifndef HUD_LCD_MIRROR_X
+#define HUD_LCD_MIRROR_X 0   /* 1 — зеркало по горизонтали (см. user_config.h) */
+#endif
+
 static const char *TAG = "lvgl_port";
 static SemaphoreHandle_t lvgl_mux = NULL;
 
@@ -57,7 +61,12 @@ static void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_
   {
     for (uint16_t i = 0; i < EXAMPLE_LCD_V_RES; i++)
     {
-      rotat_ptr[index++] = data_ptr[EXAMPLE_LCD_H_RES * (EXAMPLE_LCD_V_RES - i - 1) + j];             
+#if HUD_LCD_MIRROR_X
+      /* зеркало по горизонтали: столбец картинки x -> H_RES-1-x, т.е. строки панели идут в обратном порядке */
+      rotat_ptr[index++] = data_ptr[EXAMPLE_LCD_H_RES * (EXAMPLE_LCD_V_RES - i - 1) + (EXAMPLE_LCD_H_RES - 1 - j)];
+#else
+      rotat_ptr[index++] = data_ptr[EXAMPLE_LCD_H_RES * (EXAMPLE_LCD_V_RES - i - 1) + j];
+#endif
     }
   }
 #endif
@@ -81,6 +90,14 @@ static void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_
   {
     xSemaphoreTake(lvgl_flush_semap,portMAX_DELAY);
     memcpy(lvgl_dma_buf,map,LVGL_DMA_BUFF_LEN);
+#if HUD_LCD_MIRROR_X && (Rotated == USER_DISP_ROT_NONO)
+    /* без разворота картинка вертикальная 172 px в ширину: зеркалим каждую строку полосы на месте */
+    for (int r = 0; r < LVGL_DMA_BUFF_LEN / (LCD_NOROT_HRES * 2); r++)
+    {
+      uint16_t *row = lvgl_dma_buf + r * LCD_NOROT_HRES;
+      for (int a = 0, b = LCD_NOROT_HRES - 1; a < b; a++, b--) { uint16_t t = row[a]; row[a] = row[b]; row[b] = t; }
+    }
+#endif
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2, offsety2, lvgl_dma_buf);
     offsety1 += offgap;
     offsety2 += offgap;
@@ -122,6 +139,10 @@ static bool touch_read_hw(uint16_t *x, uint16_t *y)
   if(pointY > EXAMPLE_LCD_V_RES - 1) pointY = EXAMPLE_LCD_V_RES - 1;
   *x = (EXAMPLE_LCD_H_RES - 1 - pointX);
   *y = (EXAMPLE_LCD_V_RES - 1 - pointY);
+#endif
+#if HUD_LCD_MIRROR_X
+  /* картинка зеркальная — касание отражаем, чтобы кнопки нажимались там, где нарисованы */
+  *x = (EXAMPLE_LCD_H_RES - 1) - *x;
 #endif
   return true;
 }
