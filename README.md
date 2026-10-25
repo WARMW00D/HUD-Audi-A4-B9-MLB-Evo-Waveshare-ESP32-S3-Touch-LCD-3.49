@@ -2,7 +2,7 @@
 
 A DIY head-up display showing live vehicle data: speed, gear, cruise control and
 speed limiter, Lane Assist, traffic signs, turn signals, doors and navigation arrows.
-Data is read passively from the I-CAN (infotainment) bus; nothing is ever transmitted.
+Data is read passively from the I-CAN (infotainment) bus on MLB-Evo or from the Comfort CAN on MQB; nothing is ever transmitted.
 
 [Русская версия](README_ru.md)
 
@@ -124,7 +124,7 @@ These are not photos or mock-ups: the HUD screen code (`hud_mockup.c`) is built 
 ## Architecture
 
 ```
-Audi I-CAN (500 kbit/s)
+Audi I-CAN on MLB-Evo / Comfort CAN on MQB (500 kbit/s)
       │  TWAI LISTEN_ONLY
       ▼
 ┌────────────────────────────┐      BLE, NimBLE          ┌───────────────────────────────┐
@@ -172,7 +172,7 @@ could produce a "negative" age and make a field flicker.
 
 ### Own transceiver: Adafruit CAN Pal (5708, TJA1051T/3)
 
-Source `HUD_SRC_TWAI`: the HUD listens to I-CAN itself with the built-in TWAI controller, no BLE gateway needed.
+Source `HUD_SRC_TWAI`: the HUD listens to the car bus (I-CAN on MLB-Evo, Comfort CAN on MQB) itself with the built-in TWAI controller, no BLE gateway needed.
 
 | CAN Pal | To | Why |
 |---|---|---|
@@ -181,7 +181,7 @@ Source `HUD_SRC_TWAI`: the HUD listens to I-CAN itself with the built-in TWAI co
 | **RX** | **GPIO1** (`HUD_CAN_RX_PIN`) | the only data wire |
 | **TX** | **GPIO2** (`HUD_CAN_TX_PIN`) | wire it; in `LISTEN_ONLY` the controller holds it recessive. Do not leave it floating |
 | **SLNT** | **3V3** | TJA1051 transmitter disabled (silent mode) |
-| **H / L** (terminal block) | I-CAN CAN-H / CAN-L | twisted pair |
+| **H / L** (terminal block) | CAN-H / CAN-L of the car bus (I-CAN on MLB-Evo, **Comfort CAN on MQB**) | twisted pair |
 | middle terminal | not needed | it is already tied to the CAN Pal's own GND |
 | **Termination** switch | **OFF** | the car bus is already terminated; an extra 120 Ω degrades it |
 
@@ -752,7 +752,7 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 
 ### Platform (`HUD_PLATFORM`)
 
-`HUD_PLATFORM_MLB_EVO` (default) is the Audi A4 B9 MLB-Evo map described in this document. `HUD_PLATFORM_MQB` is selected with `#define HUD_PLATFORM HUD_PLATFORM_MQB` in `hud_config.h` or the build flag `-DHUD_PLATFORM=HUD_PLATFORM_MQB`; without an explicit choice the firmware is built for the A4. It was checked only on logs from a Skoda Octavia A7 pre-facelift with a retrofitted Virtual Cockpit (I-CAN side of the gateway, 500 kbit/s). Speed, gear, turn signals, VZE signs, Lane Assist, GNSS, Side Assist, doors and the light sensor use the same frames as on MLB. Differences:
+`HUD_PLATFORM_MLB_EVO` (default) is the Audi A4 B9 MLB-Evo map described in this document. `HUD_PLATFORM_MQB` is selected with `#define HUD_PLATFORM HUD_PLATFORM_MQB` in `hud_config.h` or the build flag `-DHUD_PLATFORM=HUD_PLATFORM_MQB`; without an explicit choice the firmware is built for the A4. It was checked only on logs from a Skoda Octavia A7 pre-facelift with a retrofitted Virtual Cockpit (connected to the **Comfort CAN**, 500 kbit/s). Speed, gear, turn signals, VZE signs, Lane Assist, GNSS, Side Assist, doors and the light sensor use the same frames as on MLB. Differences:
 
 | What | MLB-Evo (A4) | MQB (Octavia A7) | Status on MQB |
 |---|---|---|---|

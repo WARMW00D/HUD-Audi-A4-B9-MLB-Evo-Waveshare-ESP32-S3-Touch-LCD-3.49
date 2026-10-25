@@ -9,7 +9,7 @@
 
 /* ---- Источник данных ----
    HUD_SRC_BLE  — сырые CAN-кадры от сниффера / BLE-гейта по BLE (протокол ACL)
-   HUD_SRC_TWAI — свой трансивер CAN Pal (TJA1051T/3) прямо на шине I-CAN,
+   HUD_SRC_TWAI — свой трансивер CAN Pal (TJA1051T/3) прямо на шине машины (I-CAN на MLB-Evo, Comfort CAN на MQB),
                   встроенный контроллер TWAI в режиме LISTEN_ONLY
    HUD_SRC_FAKE — встроенный генератор кадров, для проверки без машины
    HUD_SRC_AUTO — работают оба: если по своему трансиверу (TWAI) идут кадры —
@@ -23,7 +23,7 @@
 
 /* ---- Платформа автомобиля (карта CAN-сигналов) ----
    HUD_PLATFORM_MLB_EVO — Audi A4 B9 и другие MLB-Evo (I-CAN, 500 кбит/с), по умолчанию.
-   HUD_PLATFORM_MQB     — VAG MQB (проверено только на Skoda Octavia A7 до рестайлинга с Virtual Cockpit):
+   HUD_PLATFORM_MQB     — VAG MQB, подключение к Comfort CAN (проверено только на Skoda Octavia A7 до рестайлинга с Virtual Cockpit):
                           ACC берётся из 0x2A7/0x30C; кадров ACC_12/ACC_14, ACC_15 и колёсика 0x64F на шине нет.
    Выбор: здесь или флагом сборки -DHUD_PLATFORM=HUD_PLATFORM_MQB. Без явного выбора сборка идёт как A4. */
 #define HUD_PLATFORM_MLB_EVO 1

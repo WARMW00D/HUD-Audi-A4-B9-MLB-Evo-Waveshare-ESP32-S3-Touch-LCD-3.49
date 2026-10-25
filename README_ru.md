@@ -2,7 +2,7 @@
 
 Самодельный проекционный дисплей (HUD) с живыми данными автомобиля: скорость,
 передача, круиз и лимитер, Lane Assist, знаки, поворотники, двери и стрелки навигации.
-Данные слушаются пассивно на шине I-CAN (инфотейнмент), в шину ничего не передаётся.
+Данные слушаются пассивно: на MLB-Evo — на шине I-CAN (инфотейнмент), на MQB — на Comfort CAN; в шину ничего не передаётся.
 
 [English version](README.md)
 
@@ -124,7 +124,7 @@
 ## Архитектура
 
 ```
-Audi I-CAN (500 кбит/с)
+Audi: I-CAN на MLB-Evo / Comfort CAN на MQB (500 кбит/с)
       │  TWAI LISTEN_ONLY
       ▼
 ┌────────────────────────────┐      BLE, NimBLE          ┌───────────────────────────────┐
@@ -172,7 +172,7 @@ Audi I-CAN (500 кбит/с)
 
 ### Свой трансивер: Adafruit CAN Pal (5708, TJA1051T/3)
 
-Источник `HUD_SRC_TWAI`: HUD сам слушает I-CAN встроенным контроллером TWAI, BLE-гейт не нужен.
+Источник `HUD_SRC_TWAI`: HUD сам слушает шину машины (I-CAN на MLB-Evo, Comfort CAN на MQB) встроенным контроллером TWAI, BLE-гейт не нужен.
 
 | CAN Pal | Куда | Зачем |
 |---|---|---|
@@ -181,7 +181,7 @@ Audi I-CAN (500 кбит/с)
 | **RX** | **GPIO1** (`HUD_CAN_RX_PIN`) | единственный провод данных |
 | **TX** | **GPIO2** (`HUD_CAN_TX_PIN`) | подключить; в `LISTEN_ONLY` контроллер держит его в рецессиве. В воздухе не оставлять |
 | **SLNT** | **3V3** | передатчик TJA1051 выключен (silent mode) |
-| **H / L** (клеммник) | CAN-H / CAN-L шины I-CAN | витая пара |
+| **H / L** (клеммник) | CAN-H / CAN-L шины машины (I-CAN на MLB-Evo, **Comfort CAN на MQB**) | витая пара |
 | средняя клемма | не нужна | на плате она уже соединена с GND CAN Pal |
 | переключатель **Termination** | **OFF** | шина в машине уже согласована, лишние 120 Ом её портят |
 
@@ -749,7 +749,7 @@ python tools/can_bitdiff.py can_log_0001.txt.lzma 0x394 --from 30 --to 60
 
 ### Платформа (`HUD_PLATFORM`)
 
-`HUD_PLATFORM_MLB_EVO` (по умолчанию) — карта Audi A4 B9 MLB-Evo из этого документа. `HUD_PLATFORM_MQB` выбирается строкой `#define HUD_PLATFORM HUD_PLATFORM_MQB` в `hud_config.h` или флагом сборки `-DHUD_PLATFORM=HUD_PLATFORM_MQB`; без явного выбора сборка идёт как A4. Проверено только по логам Skoda Octavia A7 до рестайлинга с установленным Virtual Cockpit (I-CAN со стороны шлюза, 500 кбит/с). Скорость, передача, поворотники, знаки VZE, Lane Assist, GNSS, Side Assist, двери и датчик света используют те же кадры, что и на MLB. Отличия:
+`HUD_PLATFORM_MLB_EVO` (по умолчанию) — карта Audi A4 B9 MLB-Evo из этого документа. `HUD_PLATFORM_MQB` выбирается строкой `#define HUD_PLATFORM HUD_PLATFORM_MQB` в `hud_config.h` или флагом сборки `-DHUD_PLATFORM=HUD_PLATFORM_MQB`; без явного выбора сборка идёт как A4. Проверено только по логам Skoda Octavia A7 до рестайлинга с установленным Virtual Cockpit (подключение к **Comfort CAN**, 500 кбит/с). Скорость, передача, поворотники, знаки VZE, Lane Assist, GNSS, Side Assist, двери и датчик света используют те же кадры, что и на MLB. Отличия:
 
 | Что | MLB-Evo (A4) | MQB (Octavia A7) | Статус на MQB |
 |---|---|---|---|

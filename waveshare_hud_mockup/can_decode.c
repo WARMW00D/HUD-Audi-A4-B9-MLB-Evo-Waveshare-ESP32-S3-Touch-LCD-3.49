@@ -1,5 +1,5 @@
 /*
-  can_decode.c — декодер кадров I-CAN (MLB-Evo) в HudData
+  can_decode.c — декодер кадров CAN (I-CAN MLB-Evo / Comfort CAN MQB) в HudData
   ------------------------------------------------------------------------------
   Источник позиций сигналов: K-матрица MLB-Evo I-CAN V8.21 (см. CAN_to_HUD_handoff.md).
   Все 11-битные сигналы Intel (little-endian).
