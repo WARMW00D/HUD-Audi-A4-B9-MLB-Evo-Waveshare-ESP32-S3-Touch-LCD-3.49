@@ -181,7 +181,7 @@ Source `HUD_SRC_TWAI`: the HUD listens to the car bus (I-CAN on MLB-Evo, Comfort
 | **RX** | **GPIO1** (`HUD_CAN_RX_PIN`) | the only data wire |
 | **TX** | **GPIO2** (`HUD_CAN_TX_PIN`) | wire it; in `LISTEN_ONLY` the controller holds it recessive. Do not leave it floating |
 | **SLNT** | **3V3** | TJA1051 transmitter disabled (silent mode) |
-| **H / L** (terminal block) | CAN-H / CAN-L of the car bus (I-CAN on MLB-Evo, **Comfort CAN on MQB**) | twisted pair |
+| **H / L** (terminal block) | CAN-H / CAN-L of the car bus (I-CAN on MLB-Evo, **Comfort CAN on MQB**: CAN-H = orange/green wire, CAN-L = orange/brown) | twisted pair |
 | middle terminal | not needed | it is already tied to the CAN Pal's own GND |
 | **Termination** switch | **OFF** | the car bus is already terminated; an extra 120 Ω degrades it |
 
