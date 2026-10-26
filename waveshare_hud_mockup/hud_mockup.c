@@ -274,7 +274,10 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
        иначе на её месте на мгновение вспыхивает обычный знак (VZE/PSD). Если запрос шёл и камеры нет — это настоящий конец. */
     static cam_hit_t s_h_last; static uint32_t s_t_last = 0; static bool s_was = false;
     if (hit)                      { s_h_last = h; s_t_last = now; s_was = true; }
-    else if (!gate && g_cams_on && s_was && (now - s_t_last) <= 1500) { h = s_h_last; hit = true; }
+    else if (!gate && g_cams_on && s_was && (now - s_t_last) <= 1500) {
+        float left = s_h_last.dist_m - d->speed_kmh / 3.6f * (now - s_t_last) / 1000.0f;   /* расстояние продолжает уменьшаться */
+        if (left > 0) { h = s_h_last; h.dist_m = left; hit = true; } else s_was = false;
+    }
     else                          s_was = false;
 
     g_cam_active = hit;
