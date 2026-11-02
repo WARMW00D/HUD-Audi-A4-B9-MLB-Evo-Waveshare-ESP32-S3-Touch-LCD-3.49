@@ -182,17 +182,30 @@ static HudPairCb s_pair_cb;
 
 static bool secure_channel(NimBLEClient *c)
 {
-    if (!c->secureConnection()) {
-        if (HUD_LOG_BLE) hud_log_write("[BLE] сопряжение не удалось (код? слот занят? см. BLE_pairing_protocol)\n");
-        return false;
-    }
+    /* 1) Канал мог быть уже зашифрован — проверяем фактическое состояние,
+          а не только результат secureConnection() (он бывает ложным). */
     NimBLEConnInfo ci = c->getConnInfo();
-    if (!ci.isEncrypted() || !ci.isAuthenticated()) {      /* без кода (Just Works) — не доверяем */
-        if (HUD_LOG_BLE) hud_log_write("[BLE] канал не аутентифицирован — отключаюсь\n");
-        return false;
+    if (ci.isEncrypted() && ci.isAuthenticated()) {
+        if (HUD_LOG_BLE) hud_log_write("[BLE] канал уже зашифрован\n");
+        return true;
     }
-    if (HUD_LOG_BLE) hud_log_write("[BLE] канал зашифрован, сопряжение пройдено\n");
-    return true;
+
+    /* 2) Инициируем сопряжение с клиента (сервер больше не мешает). */
+    c->secureConnection();                       /* результат НЕ решающий */
+
+    /* 3) Ждём фактического шифрования с таймаутом. */
+    uint32_t t0 = millis();
+    while (millis() - t0 < 6000) {
+        if (!c->isConnected()) return false;
+        ci = c->getConnInfo();
+        if (ci.isEncrypted() && ci.isAuthenticated()) {
+            if (HUD_LOG_BLE) hud_log_write("[BLE] канал зашифрован, сопряжение пройдено\n");
+            return true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    if (HUD_LOG_BLE) hud_log_write("[BLE] сопряжение не удалось (таймаут)\n");
+    return false;
 }
 #endif
 
@@ -249,13 +262,23 @@ static void ble_task(void *)
         scan->setActiveScan(true);
         NimBLEScanResults res = scan->getResults(3000, false);
 
-        const NimBLEAdvertisedDevice *dev = nullptr;
+        const NimBLEAdvertisedDevice *dev      = nullptr;
+        const NimBLEAdvertisedDevice *fallback = nullptr;
+        const int nBonds = NimBLEDevice::getNumBonds();
+
         for (int i = 0; i < res.getCount(); i++) {
             const NimBLEAdvertisedDevice *d = res.getDevice(i);
-            if (d && d->getName() == HUD_SNIFFER_NAME) { dev = d; break; }
-        }
-        if (!dev) { scan->clearResults(); continue; }
+            if (!d || d->getName() != HUD_SNIFFER_NAME) continue;
+            if (!d->isAdvertisingService(UUID_SVC)) continue;     /* отсечь чужие "одноимённые" */
 
+            bool bonded = false;
+            for (int b = 0; b < nBonds; b++) {
+                if (NimBLEDevice::getBondedAddress(b) == d->getAddress()) { bonded = true; break; }
+            }
+            if (bonded) { dev = d; break; }                       /* приоритет — знакомое */
+            if (!fallback) fallback = d;                          /* иначе запомним первое */
+        }
+        if (!dev) dev = fallback;
         if (HUD_LOG_BLE) arduino_printf("[BLE] найден %s, подключаюсь\n", dev->getAddress().toString().c_str());
 #if BLE_PASSKEY
         NimBLEAddress dev_addr = dev->getAddress();                  /* копия: dev исчезнет после clearResults() */
@@ -270,7 +293,7 @@ static void ble_task(void *)
             pair_fail++;
             uint32_t now_ms = millis();
             fail_t[fail_i] = now_ms ? now_ms : 1; fail_i = (fail_i + 1) % 3;
-            if (pair_fail == 2) NimBLEDevice::deleteBond(dev_addr);  /* привязка могла устареть (устройство сбросили) */
+            // if (pair_fail == 2) NimBLEDevice::deleteBond(dev_addr);  /* привязка могла устареть (устройство сбросили) */
             if (pair_fail >= HUD_BLE_PAIR_MSG_AFTER) hud_src_set_pair_failed(true);
             /* паузы 2, 4, 6, 8, 10 с; не чаще трёх попыток в минуту (после 5 неудач устройство блокирует на 60 с) */
             uint32_t pause = pair_fail >= 5 ? 10000u : 2000u * pair_fail;
