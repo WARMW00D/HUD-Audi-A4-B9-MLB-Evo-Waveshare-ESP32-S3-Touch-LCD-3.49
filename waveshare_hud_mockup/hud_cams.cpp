@@ -8,6 +8,7 @@
 #include "hud_log.h"
 #include "hud_cams.h"
 #include "hud_diag.h"
+#include "hud_anim.h"
 extern "C" {
 #include "cam_alert.h"
 }
@@ -25,6 +26,7 @@ static void load_task(void *)
         vTaskDelete(NULL);
         return;
     }
+    hud_anim_load_file();                                       /* анимированные стрелки /arrows.bin (нет файла — обычные стрелки) */
     File f = FFat.open(CAMS_PATH, "r");
     if (!f) { g_diag.db_status = DB_NO_FILE; hud_log_write("[cam] /cams.bin не найден\n"); FFat.end(); vTaskDelete(NULL); return; }
     size_t n = f.size();

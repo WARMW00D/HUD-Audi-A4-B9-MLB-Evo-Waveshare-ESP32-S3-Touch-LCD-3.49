@@ -39,6 +39,7 @@
 #include "cam_alert.h"
 #include "hud_diag.h"
 #include "hud_cams.h"
+#include "hud_anim.h"
 #include "src/lcd_bl_bsp/lcd_bl_pwm_bsp.h"
 
 /* Шрифты: Montserrat Bold (SIL OFL 1.1) с табличными цифрами — см. tools/fonts/ */
@@ -84,7 +85,7 @@ extern "C" {
 #define C_NAV_ARROW  0x30b0f0   /* маршрут — голубой, как у Audi */
 #define C_NAV_ROAD   0xffffff   /* слой дороги: серая заливка + белая кайма заложены в маске яркостью */
 #define C_NAV_NEXT   0xa8a8a8
-#define LINK_BOTTOM_MARGIN 2     /* отступ значка источника от нижнего края экрана, px */
+#define NAV_BOTTOM_Y 165         /* низ строки «дистанция + малая стрелка» в области навигации (от её верха), px */
 #define C_LINK_BLE   0x1f4fb0   /* BLE подключён */
 #define C_LINK_CAN   0x1e8a3c   /* данные по CAN */
 #define C_BAR_ON     0x4a90d9
@@ -106,6 +107,7 @@ static lv_obj_t *ps_box, *ps_tri;           /* предупреждение pre 
 static lv_obj_t *acc_sq[2][ACC_SEG];
 static lv_obj_t *fuel_bar;               /* расход топлива, правый край */
 static lv_obj_t *arrow_ph, *arrow_road, *arrow_img, *arrow_lbl, *nav_dist_lbl, *next_img;
+static lv_obj_t *anim_img;                 /* анимированная стрелка из /arrows.bin (кадр на чёрном фоне) */
 static lv_obj_t *bar_seg[16];
 static lv_obj_t *route_icon, *route_lbl;
 static lv_obj_t *speed_lbl;
@@ -115,6 +117,8 @@ static lv_obj_t *turn_left_sym, *turn_right_sym;
 static lv_obj_t *gear_lbl, *kmh_lbl, *tank_icon, *tank_lbl;
 static lv_obj_t *car_box, *car_part[6], *car_under[6];   /* FL FR RL RR HOOD TRUNK — как биты DOOR_* */
 static lv_obj_t *link_lbl, *pair_lbl;
+static bool link_pf;                    /* сопряжение не принято — значка источника нет */
+static bool tsr_shown;                  /* кружок TSR показан — значок источника на его месте не рисуем */
 
 /* ---------- мелкие помощники ---------- */
 static void vis(lv_obj_t *o, bool v)
@@ -311,6 +315,22 @@ static bool cams_update(uint32_t now, const HudData *d, uint16_t *lim_for_speed)
 }
 #endif
 
+static int tsr_text_w(lv_obj_t *l, const lv_font_t *f)
+{
+    lv_point_t p = {0, 0};
+    lv_txt_get_size(&p, lv_label_get_text(l), f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return p.x;
+}
+
+/* середина свободного места верхней строки между «сколько заправить» и передачей (зона 376..626) */
+static int top_gap_cx(void)
+{
+    int left = 376, right = 626;
+    if (!lv_obj_has_flag(tank_lbl, LV_OBJ_FLAG_HIDDEN)) left = 396 + tsr_text_w(tank_lbl, &hud_font_fuel);
+    if (!lv_obj_has_flag(gear_lbl, LV_OBJ_FLAG_HIDDEN)) right = 626 - tsr_text_w(gear_lbl, &hud_font_gear);
+    return (left + right) / 2;
+}
+
 #if HUD_TSR_STATE
 #define C_TSR_YELLOW 0xffcc00
 #define C_TSR_GREEN  0x00c800
@@ -331,13 +351,6 @@ static void tsr_build(lv_obj_t *scr)
     lv_obj_add_flag(tsr_dot, LV_OBJ_FLAG_HIDDEN);
 }
 
-static int tsr_text_w(lv_obj_t *l, const lv_font_t *f)
-{
-    lv_point_t p = {0, 0};
-    lv_txt_get_size(&p, lv_label_get_text(l), f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    return p.x;
-}
-
 static void tsr_update(const HudData *d, bool vze_on)
 {
     bool show = vze_on && (d->valid & V_SIGN) && (d->tsr_hint == 0 || d->tsr_hint == 3 || d->tsr_hint == 5);
@@ -345,12 +358,10 @@ static void tsr_update(const HudData *d, bool vze_on)
         uint32_t col = d->tsr_hint == 3 ? C_TSR_GREEN : d->tsr_hint == 5 ? C_TSR_RED : C_TSR_YELLOW;
         set_bg_color(tsr_dot, col);
         /* по центру между правым краем «сколько заправить» и левым краем передачи (если их нет — края зоны 376..626) */
-        int left  = 376, right = 626;
-        if (!lv_obj_has_flag(tank_lbl, LV_OBJ_FLAG_HIDDEN)) left = 396 + tsr_text_w(tank_lbl, &hud_font_fuel);
-        if (!lv_obj_has_flag(gear_lbl, LV_OBJ_FLAG_HIDDEN)) right = 626 - tsr_text_w(gear_lbl, &hud_font_gear);
-        int cx = (left + right) / 2;
+        int cx = top_gap_cx();
         if (lv_obj_get_x(tsr_dot) != cx - TSR_D / 2) lv_obj_set_x(tsr_dot, cx - TSR_D / 2);
     }
+    tsr_shown = show;
     vis(tsr_dot, show);
 }
 #endif
@@ -554,6 +565,41 @@ static const NavImg *nav_pick(const NavSet *set, uint8_t main, uint8_t dir)
     }
 }
 
+/* Имя анимации в arrows.bin (tools/gen_arrow_anim.py) по коду манёвра и направлению.
+   false — для этого манёвра анимации нет (рисуем обычную стрелку). */
+static bool anim_name(char *out, size_t n, uint8_t main, uint8_t dir)
+{
+    bool right = dir > 0x80;
+    int  deg   = (int)(((unsigned)dir * 360u + 128u) / 256u);         /* против часовой от «прямо», 0..360 */
+    switch (main) {
+    case 0x00: case 0x01: case 0x09: case 0x0A: return false;
+    case 0x0B: snprintf(out, n, "approach"); return true;                           /* FollowStreet */
+    case 0x03: snprintf(out, n, dir == 0 ? "arrived_c" : right ? "arrived_r" : "arrived_l"); return true;
+    case 0x0F: snprintf(out, n, "exit_r"); return true;
+    case 0x10: snprintf(out, n, "exit_l"); return true;
+    case 0x13: case 0x14:
+        if (dir == 0) right = (main == 0x13);
+        snprintf(out, n, right ? "exit_r" : "exit_l");
+        return true;
+    case 0x19: snprintf(out, n, right ? "uturn_lht" : "uturn_rht"); return true;
+    case 0x15: case 0x16: {                                                        /* кольцо: угол съезда по часовой, шаг 45° */
+        int cw = (360 - deg) % 360;
+        int e  = ((cw + 22) / 45) * 45;
+        if (e == 0 || e >= 360) e = HUD_LEFT_HAND_TRAFFIC ? 45 : 315;              /* «прямо» — ближайший к нему съезд */
+        snprintf(out, n, "roundabout_%s_e%03d", HUD_LEFT_HAND_TRAFFIC ? "lht" : "rht", e);
+        return true;
+    }
+    default: {                                                                     /* поворот (и неизвестные коды, как у обычных стрелок) */
+        int mag = right ? 360 - deg : deg;                                         /* 0..180 */
+        if (mag >= 172) { snprintf(out, n, right ? "uturn_lht" : "uturn_rht"); return true; }
+        int st = ((mag + 7) / 15) * 15;
+        if (st == 0) snprintf(out, n, "approach");                                 /* «прямо» — как FollowStreet */
+        else         snprintf(out, n, right ? "turn_r%03d" : "turn_l%03d", st);
+        return true;
+    }
+    }
+}
+
 /* ---------- автояркость по Dimmung_01 ---------- */
 /* освещённость, лк: LS_Helligkeit_FW x6 (до 6126); когда датчик в потолке —
    верхняя граница диапазона по RLS_Vorfeldhelligkeit_Boost (0 — ярче 24413) */
@@ -716,15 +762,7 @@ static void hud_update_cb(lv_timer_t *t)
         ? "Pairing rejected. Check the passkey or reset pairings on the device: hold BOOT for 5 s."
         : "Сопряжение не принято. Проверьте код доступа или сбросьте сопряжения на устройстве: удерживайте BOOT 5 с.");
     vis(pair_lbl, pf);
-    /* индикатор источника под стрелкой: нет связи — серый «BT ...», BLE — тёмно-синий,
-       свой CAN — тёмно-зелёная надпись CAN */
-    {
-        int src = d.link_up ? hud_src_current() : -1;
-        if (src == 1)      { set_text(link_lbl, "CAN");               set_text_color(link_lbl, C_LINK_CAN); }
-        else if (src == 0) { set_text(link_lbl, LV_SYMBOL_BLUETOOTH); set_text_color(link_lbl, C_LINK_BLE); }
-        else               { set_text(link_lbl, LV_SYMBOL_BLUETOOTH " ..."); set_text_color(link_lbl, 0x666666); }
-        vis(link_lbl, !pf);
-    }
+    link_pf = pf;      /* значок источника обновляется ниже, после TSR (они делят место в верхней строке) */
     update_brightness(&d, now);
 
     /* --- скорость --- */
@@ -957,6 +995,22 @@ static void hud_update_cb(lv_timer_t *t)
     tsr_update(&d, g_vze);
 #endif
 
+    /* значок источника данных — в верхней строке между «сколько заправить» и передачей, на месте кружка TSR
+       (кружок показан — значка нет). Нет связи — серый «BT ...», BLE — синий, свой CAN — зелёная надпись CAN */
+    {
+        int src = d.link_up ? hud_src_current() : -1;
+        if (src == 1)      { set_text(link_lbl, "CAN");               set_text_color(link_lbl, C_LINK_CAN); }
+        else if (src == 0) { set_text(link_lbl, LV_SYMBOL_BLUETOOTH); set_text_color(link_lbl, C_LINK_BLE); }
+        else               { set_text(link_lbl, LV_SYMBOL_BLUETOOTH " ..."); set_text_color(link_lbl, 0x666666); }
+        bool lshow = !link_pf && !tsr_shown;
+        if (lshow) {
+            lv_obj_update_layout(link_lbl);
+            int x = top_gap_cx() - lv_obj_get_width(link_lbl) / 2;
+            if (lv_obj_get_x(link_lbl) != x) lv_obj_set_x(link_lbl, x);
+        }
+        vis(link_lbl, lshow);
+    }
+
     /* --- мигалки --- */
     bool bv  = d.valid & V_BLINK;
     bool haz = bv && (d.blink & BLINK_HAZARD);
@@ -1049,12 +1103,38 @@ static void hud_update_cb(lv_timer_t *t)
         static const NavImg *n2_last = NULL;
         if (n2 && n2 != n2_last) {
             lv_img_set_src(next_img, n2->img);
-            lv_obj_set_pos(next_img, NAV_AREA_W - NAV_SMALL_W - 2 + n2->x, 140 - NAV_SMALL_H - 1 + n2->y);
+            lv_obj_set_pos(next_img, NAV_AREA_W - NAV_SMALL_W - 2 + n2->x, NAV_BOTTOM_Y - NAV_SMALL_H + n2->y);
         }
         n2_last = n2;
         vis(next_img, n2 != NULL);
     }
     vis(arrow_ph, nav);
+    bool anim_on = false;       /* true — вместо статичной стрелки показан кадр анимации из /arrows.bin (бар-граф тогда не рисуем) */
+    if (nav && ni != NULL && hud_anim_ready()) {
+        static uint8_t am = 0xFF, ad = 0xFF; static int aidx = -1;
+        static int la = -1, lf = -1;
+        if (d.man_main != am || d.man_dir != ad) {
+            am = d.man_main; ad = d.man_dir;
+            char nm[40];
+            aidx = anim_name(nm, sizeof nm, am, ad) ? hud_anim_find(nm) : -1;
+        }
+        if (aidx >= 0) {
+            int nf = hud_anim_frames(aidx);
+            /* кадр — по бар-графу (0..100 %), каждый раз заново: после перестроения маршрута анимация
+               сразу встаёт на нужный кадр, без проигрыша с начала */
+            int pct = ((d.valid & V_MDIST) && d.bargraph <= 100) ? d.bargraph : -1;
+            if (pct >= 0 && HUD_ANIM_BAR_INVERT) pct = 100 - pct;
+            int fr = (pct >= 0) ? (nf > 1 ? (pct * (nf - 1) + 50) / 100 : 0) : ((la == aidx && lf >= 0) ? lf : 0);
+            if (aidx == la && fr == lf) {
+                anim_on = true;
+            } else {
+                const lv_img_dsc_t *fd = hud_anim_frame(aidx, fr);
+                if (fd) { lv_img_set_src(anim_img, fd); la = aidx; lf = fr; anim_on = true; }
+                else { la = -1; lf = -1; }
+            }
+        }
+    }
+    vis(anim_img, anim_on);
     if (nav) {
         static const NavImg *ni_last = NULL;
         if (ni && ni != ni_last) {
@@ -1067,8 +1147,8 @@ static void hud_update_cb(lv_timer_t *t)
         }
         ni_last = ni;
         bool calc = (d.man_main == 0x09 || d.man_main == 0x0A);
-        vis(arrow_img, ni != NULL);
-        vis(arrow_road, ni != NULL && ni->road != NULL);
+        vis(arrow_img, ni != NULL && !anim_on);
+        vis(arrow_road, ni != NULL && ni->road != NULL && !anim_on);
         vis(arrow_lbl, ni == NULL && calc);             /* расчёт маршрута; 0x00/0x01 — пусто */
 
 #if HUD_LOG_BAP
@@ -1098,7 +1178,7 @@ static void hud_update_cb(lv_timer_t *t)
     }
 
     int filled = -1;   /* -1 = бар скрыт */
-    if (nav && (d.valid & V_MDIST) && d.bargraph != 0xFF)
+    if (nav && !anim_on && (d.valid & V_MDIST) && d.bargraph != 0xFF)
         filled = d.bargraph * 16 / 100;
     for (int i = 0; i < 16; i++) {
         vis(bar_seg[i], filled >= 0);
@@ -1827,9 +1907,14 @@ void build_hud_mockup(void)
     /* Стрелка (заглушка текстом) */
     /* Стрелка навигации: картинка (hud_nav_images, 4-бит маски) + дистанция
        до манёвра под ней. Область 192x140: стрелка 192x116, строка — ниже. */
+    /* анимированная стрелка (если есть /arrows.bin): кадр 208x140 — область стрелки + место бара */
+    anim_img = lv_img_create(scr);
+    lv_obj_set_pos(anim_img, LX + 145, 5);
+    lv_obj_add_flag(anim_img, LV_OBJ_FLAG_HIDDEN);
+
     arrow_ph = lv_obj_create(scr);
     lv_obj_remove_style_all(arrow_ph);
-    lv_obj_set_size(arrow_ph, 192, 140);
+    lv_obj_set_size(arrow_ph, 192, 167);
     lv_obj_set_pos(arrow_ph, LX + 145, 5);
     lv_obj_clear_flag(arrow_ph, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     arrow_road = car_img(arrow_ph, nav_big.turn[0].road, nav_big.turn[0].rx, nav_big.turn[0].ry, C_NAV_ROAD);   /* под стрелкой */
@@ -1850,7 +1935,7 @@ void build_hud_mockup(void)
     lv_obj_set_style_text_color(nav_dist_lbl, lv_color_white(), 0);
     lv_obj_set_style_text_align(nav_dist_lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(nav_dist_lbl, 192);
-    lv_obj_set_pos(nav_dist_lbl, 0, NAV_AREA_H + 2);
+    lv_obj_set_pos(nav_dist_lbl, 0, NAV_BOTTOM_Y - 22);
     lv_obj_add_flag(nav_dist_lbl, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(arrow_ph, LV_OBJ_FLAG_HIDDEN);
 
@@ -1969,10 +2054,8 @@ void build_hud_mockup(void)
        (внизу, под дистанцией). Выровнен по центру области 192 px. */
     link_lbl = lv_label_create(scr);
     lv_label_set_text(link_lbl, LV_SYMBOL_BLUETOOTH " ...");
-    lv_obj_set_width(link_lbl, 192);
-    lv_obj_set_style_text_align(link_lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(link_lbl, lv_color_hex(0x666666), 0);
-    lv_obj_align(link_lbl, LV_ALIGN_BOTTOM_LEFT, LX + 145, -LINK_BOTTOM_MARGIN);   /* от нижнего края экрана */
+    lv_obj_set_pos(link_lbl, 480, 4);                          /* x подбирается в апдейте: середина между заправкой и передачей */
 
     /* ===== Правая зона ===== */
     int RX = 360;
