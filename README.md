@@ -616,6 +616,8 @@ Besides the static arrows from `hud_nav_images`, the HUD can draw an animated pe
 ![Animated arrow: left turn in 900 m, camera ahead](docs/screens/hud_anim_03_left_turn_camera.png)
 ![Animated arrow: turn in 900 m](docs/screens/hud_anim_04_turn_900m.png)
 
+![Animated arrow: approaching a turn, 1.2 km to 150 m (sped up about 5x)](docs/screens/hud_anim_turn.gif)
+
 - The animation frame is picked straight from the navigation bar-graph (0–100 %), on every update and independently of the previous frame, so after a re-route it simply jumps to the right frame instead of playing from the start. While an animation is shown the side bar is not drawn (the animation shows the same progress). In the car the bar-graph turned out to run the other way (100 % = far), so `HUD_ANIM_BAR_INVERT` is 1 by default; set it to 0 if your navigation does it the other way round. For left-hand traffic set `HUD_LEFT_HAND_TRAFFIC 1`.
 - The file is built from a folder of PNG frames (`<manoeuvre>.p<N>.png`, 328×180, a floor-grid background `blank.png` and `frames.idx`) by `python tools/gen_arrow_anim.py <folder> arrows.bin` (needs `pillow numpy lz4`). The floor grid is cut out (it is not stored), the frames only hold the road and the arrow on black, 16 colours, every frame is an independent LZ4 block: about 3.5 MB for 1669 frames.
 - Upload: the same page as the camera database (hold **BOOT**, `http://192.168.4.1`, block "Camera database"), choose `arrows.bin`; the type is recognised by its header. At start the file is read into PSRAM (~3 MB), a frame is unpacked in about a millisecond only when it changes.
