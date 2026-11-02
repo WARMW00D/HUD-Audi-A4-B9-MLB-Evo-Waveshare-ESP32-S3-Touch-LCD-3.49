@@ -589,10 +589,11 @@ static void update_brightness(const HudData *d, uint32_t now)
     if (w > 1) w = 1;
 
     int target = HUD_BRIGHT_NO_DATA;
+    float t = 0;                                  /* объявлено здесь — нужно ниже в логе */
     if (lux >= 0) {
         /* освещённость 0..1, логарифмически между DARK и BRIGHT */
         float lo = log10f(HUD_LIGHT_LUX_DARK + 10.0f), hi = log10f(HUD_LIGHT_LUX_BRIGHT + 10.0f);
-        float t = (log10f(lux + 10.0f) - lo) / (hi - lo);
+        t = (log10f(lux + 10.0f) - lo) / (hi - lo);
         if (t < 0) t = 0;
         if (t > 1) t = 1;
         float dark   = HUD_BR_DARK_WHEEL_MIN   + (HUD_BR_DARK_WHEEL_MAX   - HUD_BR_DARK_WHEEL_MIN)   * w;
