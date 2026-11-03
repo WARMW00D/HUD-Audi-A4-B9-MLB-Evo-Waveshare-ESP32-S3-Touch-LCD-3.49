@@ -506,7 +506,7 @@ void hud_data_fake_doors(uint8_t mask)
 
 /* ---------- диагностика: счётчики кадров по ID ---------- */
 #if HUD_PLATFORM == HUD_PLATFORM_MQB
-static const uint16_t s_dbg_ids[] = { 0x30B, 0x2A7, 0x30C, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x5F0, 0x5A0, 0x30F, 0x101, 0x6B2, 0x462, 0x463, 0x464 };
+static const uint16_t s_dbg_ids[] = { 0x30B, 0x30C, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x5F0, 0x5A0, 0x30F, 0x101, 0x6B2, 0x462, 0x463, 0x464 };
 #else
 static const uint16_t s_dbg_ids[] = { 0x30B, 0x2A6, 0x2A8, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x2A9, 0x5F0, 0x5A0, 0x64F, 0x30F, 0x101, 0x6B2, 0x462, 0x463, 0x464 };
 #endif
@@ -594,11 +594,10 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
         fuel_update((uint16_t)sig(d, 48, 15));
         break;
 #if HUD_PLATFORM == HUD_PLATFORM_MQB
-    case 0x2A7: /* MQB: ACC активен — бит 58 (⚠️ гипотеза по совпадению интервалов, Octavia A7) */
-        s_data.acc_status = sig(d, 58, 1) ? 3 : 2;           /* 3 активен, 2 ожидание */
-        touch(S_ACC);
-        break;
-    case 0x30C: { /* MQB: ACC_02 — заданная скорость 16|6: км/ч = 5·v+5, 63 = не задана */
+    case 0x30C: { /* MQB: ACC_02 — заданная скорость 16|6: км/ч = 5·v+5, 63 = не задана (проверено на Passat: 60, 70).
+                     Статус ACC_Status_Anzeige 61|3 — то же значение, что ACC_14 16|3 на A4: 2 ожидание, 3 активен, 4 перехват
+                     педалью, 0 выкл. (по логу Passat 29.10 совпадает с прежним битом 58 в 0x2A7 в 99 % кадров) */
+        s_data.acc_status = (uint8_t)sig(d, 61, 3);
         uint32_t v = sig(d, 16, 6);
         s_data.acc_set_raw = (v == 63) ? 0x3FF : (uint16_t)((((v * 5u + 5u) * 100u) + 16u) / 32u);   /* км/ч -> ×0.32 */
         /* Машина впереди: 45|2 — как в ACC_12 на A4 (в активном ACC на Октавии 94 % кадров = 1,
