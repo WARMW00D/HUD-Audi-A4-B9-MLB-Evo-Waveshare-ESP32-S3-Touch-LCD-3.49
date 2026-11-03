@@ -66,7 +66,7 @@ Any field without fresh data is **hidden** instead of showing a stale value
 
 ### Version
 
-Current firmware version: **3.2.3** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 3.2.3: "Arrow animation" toggle in the settings menu — the animated arrows can be switched off in the car (the usual arrows and the bar are drawn then); `HUD_ANIM_ON`. 3.2.2: animated arrows zoomed ×1.25 (empty horizon area cropped; regenerate `arrows.bin`); distance to the manoeuvre and the small next-manoeuvre arrow moved to the bottom strip of the navigation area; the data-source icon moved to the top row between refuel amount and gear (hidden while the TSR dot is lit); `HUD_LOG_TWAI` is off by default. 3.2.1: animated arrows — no floor grid, bar-graph direction inverted (100 % = far). 3.2.0: optional animated navigation arrows from `/arrows.bin` (FATFS) — see [Animated navigation arrows](#animated-navigation-arrows-optional-arrowsbin); without the file nothing changes. 3.1.2: ACC radar waves are drawn whenever ACC is regulating (green car), even with no vehicle ahead; with the white icon only with a lead vehicle. 3.1.1: camera distance lag at speed fixed — GNSS lead time raised 0.5 → 1.4 s (`CAM_LEAD_S`), held distance keeps counting down. 3.1.0: `HUD_LCD_MIRROR_X` option in `user_config.h` — horizontal mirror of the picture (and of touch) for a HUD read in a windshield reflection; off by default. 3.0.0: new car platform — MQB support (checked on a Skoda Octavia A7) next to MLB-Evo (Audi A4 B9), selected with `HUD_PLATFORM`; MLB-Evo stays the default. 2.1.1: MQB platform map aligned with the SuperMini HUD — `HUD_PLATFORM_MLB_EVO` / `HUD_PLATFORM_MQB`, lead vehicle and gap from 0x30C, lighting wheel from 0x5F0, MQB-specific BLE ACL. 2.1.0: `HUD_PLATFORM` option in `hud_config.h` — `HUD_PLATFORM_MQB` adds the MQB signal map (ACC from 0x2A7 / 0x30C), checked on a Skoda Octavia A7 with Virtual Cockpit; ACC_12/ACC_14, the lighting wheel (0x64F) and the ACC target, distance and lane-keeping fields are not available there yet. 2.0.4: 2.0.4: a camera sign is no longer replaced for a moment by a regular road sign when the camera conditions (heading, HDOP, speed) briefly drop out — the last camera is held for 1.5 s. 2.0.3: speed no longer blinks out on hard braking/acceleration — USB log output cannot block CAN reception any more, RX queue 512 frames, CAN task priority raised, speed is kept for 2 s after the last frame. 2.0.2: any pause in speed frames (0x30B) over 200 ms is logged with the TWAI driver counters. 2.0.1: tighter camera tolerances (`HUD_CAM_CROSS_M` 22 m, `HUD_CAM_DIR_DEG` 35°) against cameras of neighbouring roads. 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
+Current firmware version: **3.3.0** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 3.3.0: the animated arrow now loops through all frames of the manoeuvre in 2 s (`HUD_ANIM_PERIOD_MS`) instead of following the bar-graph; the progress to the manoeuvre is shown by a thin bar above the arrow area (`HUD_NAV_BAR_TOP 1`; 0 = the old 16-segment side bar) for both the animated and the usual arrows; the usual arrows moved down to keep equal gaps to the bar and to the distance; new `arrows.bin` — frames regenerated from the original images (cropped, squeezed vertically to 192×130), straight ahead smoothed from 13 to 36 frames; frames change from a separate 16 ms timer and the 90° screen rotation is done in blocks, so the animation is smooth (**the new `arrows.bin` must be uploaded**). 3.2.3: "Arrow animation" toggle in the settings menu — the animated arrows can be switched off in the car (the usual arrows and the bar are drawn then); `HUD_ANIM_ON`. 3.2.2: animated arrows zoomed ×1.25 (empty horizon area cropped; regenerate `arrows.bin`); distance to the manoeuvre and the small next-manoeuvre arrow moved to the bottom strip of the navigation area; the data-source icon moved to the top row between refuel amount and gear (hidden while the TSR dot is lit); `HUD_LOG_TWAI` is off by default. 3.2.1: animated arrows — no floor grid, bar-graph direction inverted (100 % = far). 3.2.0: optional animated navigation arrows from `/arrows.bin` (FATFS) — see [Animated navigation arrows](#animated-navigation-arrows-optional-arrowsbin); without the file nothing changes. 3.1.2: ACC radar waves are drawn whenever ACC is regulating (green car), even with no vehicle ahead; with the white icon only with a lead vehicle. 3.1.1: camera distance lag at speed fixed — GNSS lead time raised 0.5 → 1.4 s (`CAM_LEAD_S`), held distance keeps counting down. 3.1.0: `HUD_LCD_MIRROR_X` option in `user_config.h` — horizontal mirror of the picture (and of touch) for a HUD read in a windshield reflection; off by default. 3.0.0: new car platform — MQB support (checked on a Skoda Octavia A7) next to MLB-Evo (Audi A4 B9), selected with `HUD_PLATFORM`; MLB-Evo stays the default. 2.1.1: MQB platform map aligned with the SuperMini HUD — `HUD_PLATFORM_MLB_EVO` / `HUD_PLATFORM_MQB`, lead vehicle and gap from 0x30C, lighting wheel from 0x5F0, MQB-specific BLE ACL. 2.1.0: `HUD_PLATFORM` option in `hud_config.h` — `HUD_PLATFORM_MQB` adds the MQB signal map (ACC from 0x2A7 / 0x30C), checked on a Skoda Octavia A7 with Virtual Cockpit; ACC_12/ACC_14, the lighting wheel (0x64F) and the ACC target, distance and lane-keeping fields are not available there yet. 2.0.4: 2.0.4: a camera sign is no longer replaced for a moment by a regular road sign when the camera conditions (heading, HDOP, speed) briefly drop out — the last camera is held for 1.5 s. 2.0.3: speed no longer blinks out on hard braking/acceleration — USB log output cannot block CAN reception any more, RX queue 512 frames, CAN task priority raised, speed is kept for 2 s after the last frame. 2.0.2: any pause in speed frames (0x30B) over 200 ms is logged with the TWAI driver counters. 2.0.1: tighter camera tolerances (`HUD_CAM_CROSS_M` 22 m, `HUD_CAM_DIR_DEG` 35°) against cameras of neighbouring roads. 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
 
 > **Which platform is built by default?** **MLB-Evo (Audi A4 B9)**. This is the car the project was developed on, so the default map is the A4 one. If your car is **MQB** (checked on a Skoda Octavia A7), set `#define HUD_PLATFORM HUD_PLATFORM_MQB` in `hud_config.h` — see [Platform](#platform-hud_platform). Without it ACC will not show: the MQB car sends different frames.
 
@@ -74,28 +74,28 @@ Current firmware version: **3.2.3** (`HUD_FW_VERSION` in `hud_config.h`; shown o
 
 These are not photos or mock-ups: the HUD screen code (`hud_mockup.c`) is built for a PC together with LVGL and fed with frames from real drive logs (the same decoder and the same camera database as in the firmware). 1280×344 = the 640×172 display at 2×.
 
-![ACC and Lane Assist active, speed camera 190 m ahead, right turn](docs/screens/hud_01_acc_lka_camera_nav.png)
-*ACC and Lane Assist active, speed camera 190 m ahead, right turn*
+![ACC and Lane Assist active, speed camera 130 m ahead, right turn](docs/screens/hud_01_acc_lka_camera_nav.png)
+*ACC and Lane Assist active, speed camera 130 m ahead, right turn*
 
 ![Over the camera limit: camera icon turns red, its limit sign flashes, speed digits get the red outline](docs/screens/hud_02_overspeed_camera_alert.png)
 *Over the camera limit: camera icon turns red, its limit sign flashes, speed digits get the red outline*
 
-![Navigation: right turn in 500 m, Lane Assist lines](docs/screens/hud_03_right_turn_nav.png)
-*Navigation: right turn in 500 m, Lane Assist lines*
+![Navigation: turn in 1.4 km, ACC and Lane Assist](docs/screens/hud_03_right_turn_nav.png)
+*Navigation: turn in 1.4 km, ACC and Lane Assist*
 
 <details><summary>More screenshots</summary>
 
-![Straight road, camera 110 m ahead, navigation](docs/screens/hud_04_camera_straight_nav.png)
-*Straight road, camera 110 m ahead, navigation*
+![Straight road, camera 70 m ahead, navigation](docs/screens/hud_04_camera_straight_nav.png)
+*Straight road, camera 70 m ahead, navigation*
 
-![ACC + Lane Assist, camera 260 m ahead](docs/screens/hud_05_acc_lka_camera_highway.png)
-*ACC + Lane Assist, camera 260 m ahead*
+![ACC + Lane Assist, camera 220 m ahead](docs/screens/hud_05_acc_lka_camera_highway.png)
+*ACC + Lane Assist, camera 220 m ahead*
 
-![Right turn in 600 m, set speed](docs/screens/hud_06_right_turn_600m.png)
-*Right turn in 600 m, set speed*
+![Turn in 1.8 km, set speed](docs/screens/hud_06_right_turn_set_speed.png)
+*Turn in 1.8 km, set speed*
 
-![Left turn, camera 220 m ahead](docs/screens/hud_07_left_turn_camera_ahead.png)
-*Left turn, camera 220 m ahead*
+![Left turn in 2.9 km](docs/screens/hud_07_left_turn_nav.png)
+*Left turn in 2.9 km*
 
 ![Lane Assist lines (yellow = on but not holding), navigation](docs/screens/hud_08_lka_lines_nav.png)
 *Lane Assist lines (yellow = on but not holding), navigation*
@@ -611,15 +611,15 @@ Graphics flash usage: ~40 KB icons and car view + ~200 KB arrows.
 
 Besides the static arrows from `hud_nav_images`, the HUD can draw an animated perspective view of the manoeuvre (road, junction, roundabout, arrow) from the file `/arrows.bin` in the FATFS partition. **Without the file nothing changes**: the usual arrows and the 16-segment distance bar are drawn.
 
-![Animated arrow: right turn in 500 m](docs/screens/hud_anim_01_right_turn_500m.png)
-![Animated arrow: right turn in 600 m, the road runs towards the junction](docs/screens/hud_anim_02_right_turn_600m.png)
-![Animated arrow: turn in 900 m, camera 60 m ahead](docs/screens/hud_anim_03_camera_ahead.png)
-![Animated arrow: U-turn in 300 m](docs/screens/hud_anim_04_uturn_300m.png)
+![Animated arrow: turn in 500 m](docs/screens/hud_anim_01_turn_500m.png)
+![Animated arrow: right turn in 400 m, the road runs towards the junction](docs/screens/hud_anim_02_turn_400m.png)
+![Animated arrow: turn in 700 m, camera 40 m ahead](docs/screens/hud_anim_03_camera_ahead.png)
+![Animated arrow: U-turn in 300 m](docs/screens/hud_anim_04_uturn.png)
 
-![Animated arrow: approaching a U-turn, 300 m to 70 m (sped up about 5x)](docs/screens/hud_anim_turn.gif)
+![Animated arrow: approaching a U-turn, 10 s in real time, the progress bar on top grows](docs/screens/hud_anim_turn.gif)
 
-- The animation frame is picked straight from the navigation bar-graph (0–100 %), on every update and independently of the previous frame, so after a re-route it simply jumps to the right frame instead of playing from the start. While an animation is shown the side bar is not drawn (the animation shows the same progress). In the car the bar-graph turned out to run the other way (100 % = far), so `HUD_ANIM_BAR_INVERT` is 1 by default; set it to 0 if your navigation does it the other way round. For left-hand traffic set `HUD_LEFT_HAND_TRAFFIC 1`.
-- The file is built from a folder of PNG frames (`<manoeuvre>.p<N>.png`, 328×180, a floor-grid background `blank.png` and `frames.idx`) by `python tools/gen_arrow_anim.py <folder> arrows.bin` (needs `pillow numpy lz4`). The floor grid is cut out (it is not stored), the frames only hold the road and the arrow on black, 16 colours, every frame is an independent LZ4 block: about 3.5 MB for 1669 frames.
+- The animation does not depend on the bar-graph: it loops through all frames of the manoeuvre from the first to the last in `HUD_ANIM_PERIOD_MS` (2 s), over and over; when the manoeuvre changes it starts again from the first frame. The progress to the manoeuvre is shown by the thin bar above the arrow (`HUD_NAV_BAR_TOP 1`, default; 0 = the old 16-segment side bar, hidden while an animation plays). In the car the bar-graph turned out to run the other way (100 % = far), so `HUD_ANIM_BAR_INVERT` is 1 by default; set it to 0 if your navigation does it the other way round. For left-hand traffic set `HUD_LEFT_HAND_TRAFFIC 1`. A separate 16 ms LVGL timer changes the frames (the main update runs every 50 ms), so the loop stays even.
+- The file is built from a folder of PNG frames (`<manoeuvre>.p<N>.png`, 328×180, a floor-grid background `blank.png` and `frames.idx`) by `python tools/gen_arrow_anim.py <folder> arrows.bin` (needs `pillow numpy lz4`). The empty part of every frame is cropped (the same rectangle `CROP` for all frames), the content is squeezed vertically to 192×130 so there is room for the bar above and the distance below, and the straight-ahead animation (13 source frames) is smoothed to 36 by blending neighbours (`SMOOTH`). The floor grid is cut out (it is not stored), the frames only hold the road and the arrow on black, 16 colours, every frame is an independent LZ4 block: about 3.1 MB for 1692 frames.
 - Upload: the same page as the camera database (hold **BOOT**, `http://192.168.4.1`, block "Camera database"), choose `arrows.bin`; the type is recognised by its header. At start the file is read into PSRAM (~3 MB), a frame is unpacked in about a millisecond only when it changes.
 - A ready-made file is in the repository: [`arrows/arrows.bin`](arrows/arrows.bin) (the frames it was built from are not included).
 
@@ -864,5 +864,6 @@ If you do not agree with these terms, do not build or use the Project.
 - openpilot — meaning of the Lane Assist signals.
 - revag-bap — BAP framing.
 - [Montserrat](https://github.com/JulietaUla/Montserrat) and [Roboto Condensed](https://github.com/googlefonts/roboto-classic) — fonts (SIL OFL 1.1).
+- [chefranov](https://github.com/chefranov/mhi2-au37x-carplay) — thanks for the navigation arrow animation used in the animated arrows (`arrows.bin`).
 - Waveshare — BSP and examples for the ESP32-S3-Touch-LCD-3.49.
 - LVGL, NimBLE-Arduino, [esp_codec_dev](https://components.espressif.com/components/espressif/esp_codec_dev) (Espressif, Apache-2.0).
