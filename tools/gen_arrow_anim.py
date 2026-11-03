@@ -6,8 +6,10 @@ gen_arrow_anim.py — пакует анимированные стрелки н�
     python tools/gen_arrow_anim.py <папка_с_кадрами> [arrows.bin]
 
 Папка с кадрами: <папка>/large_sport/<имя>.p<N>.png (+ blank.png — пустой фон и frames.idx со строками
-«имя<TAB>число_кадров»). Кадр 328x180 (вид с перспективой и сеткой пола) масштабируется (ZOOM 1.25: пустой верх с горизонтом отбрасывается)
-и обрезается до 208x140 px: область стрелки 192 px + место бывшего бара-графа.
+«имя<TAB>число_кадров»). Кадр 328x180 (вид с перспективой и сеткой пола).
+Кадр 328x180: содержимое (дорога, стрелка, кольцо) занимает только прямоугольник CROP (192x141, общий для всех кадров),
+он вырезается и по высоте сжимается до H (192x130): сверху остаётся место под бар прогресса, снизу — под строку
+дистанции. Кадров "approach" (движение прямо) всего 13 — недостающие досчитываются смешиванием соседних (до 36).
 
 Пол с сеткой одинаков во всех кадрах (blank.png) и в файл НЕ кладётся: в кадрах остаётся только то, что от него
 отличается (дорога, стрелка, кольцо...), пиксели, совпадающие с полом, прозрачны — анимация рисуется на чёрном.
@@ -30,19 +32,16 @@ import numpy as np
 import lz4.block
 from PIL import Image
 
-W, H = 208, 140
+W, H = 192, 130
+CROP = (68, 39, 260, 180)             # общая рамка содержимого во всех кадрах 328x180 (по всем кадрам)
+SMOOTH = {"approach": 36}             # анимации с малым числом кадров: досчитать до N смешиванием соседних (по кругу)
 SKIP = {"merge_l", "merge_r", "turn_r000"}   # в прошивке не используются; «прямо» рисует approach (без скруглённого тупика)
 RAW = ((W + 1) // 2) * H
-ZOOM = 1.25                            # верх кадра (горизонт) пустой — увеличиваем и обрезаем сверху
 DIFF = 2                               # пиксель отличается от фона больше, чем на это — рисуется
 
 def fit(im):
-    """328x180 -> масштаб по высоте до H*ZOOM, обрезка по центру до W и снизу до H (пустой верх отбрасывается)."""
-    nh = round(H * ZOOM)
-    nw = round(im.width * nh / im.height)
-    im = im.resize((nw, nh), Image.LANCZOS)
-    x0 = (nw - W) // 2
-    return np.array(im.crop((x0, nh - H, x0 + W, nh))).astype(np.int32)
+    """328x180 -> вырезка CROP и масштаб до W x H (по высоте сжатие)."""
+    return np.array(im.crop(CROP).resize((W, H), Image.LANCZOS)).astype(np.int32)
 
 
 def main():
@@ -57,8 +56,25 @@ def main():
         if len(p) == 2 and p[0] not in SKIP:
             names.append((p[0], int(p[1])))
 
+    cache = {}
+
+    def raw(n, i):
+        if (n, i) in cache:
+            return cache[(n, i)]
+        c = fit(Image.open(f"{d}/{n}.p{i}.png").convert("RGB"))
+        if n in SMOOTH:
+            cache[(n, i)] = c
+        return c
+
     def load(n, i):
-        return fit(Image.open(f"{d}/{n}.p{i}.png").convert("RGB"))
+        k0 = dict(names)[n]
+        k = SMOOTH.get(n, k0)
+        if k == k0:
+            return raw(n, i)
+        t = i * k0 / k                       # позиция в исходных кадрах, цикл
+        a = int(t) % k0
+        f = t - int(t)
+        return np.rint(raw(n, a) * (1 - f) + raw(n, (a + 1) % k0) * f).astype(np.int32)
 
     def mask_of(c):
         return (np.abs(c - bg).max(2) > DIFF)
@@ -67,7 +83,7 @@ def main():
     pix = []
     for n, k in names:
         for i in {0, k // 2, k - 1}:
-            c = load(n, i)
+            c = raw(n, i)
             pix.append(c[mask_of(c)][::2])
     pix = np.concatenate(pix).astype(np.uint8)
     side = int(len(pix) ** 0.5)
@@ -86,6 +102,7 @@ def main():
 
     frames, anim = [], []
     for n, k in names:
+        k = SMOOTH.get(n, k)
         anim.append((n, k, len(frames)))
         for i in range(k):
             c = load(n, i)
