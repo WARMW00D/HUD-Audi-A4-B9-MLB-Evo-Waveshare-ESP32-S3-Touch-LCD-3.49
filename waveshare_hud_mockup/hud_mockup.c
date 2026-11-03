@@ -85,6 +85,15 @@ extern "C" {
 #define C_NAV_ARROW  0x30b0f0   /* маршрут — голубой, как у Audi */
 #define C_NAV_ROAD   0xffffff   /* слой дороги: серая заливка + белая кайма заложены в маске яркостью */
 #define C_NAV_NEXT   0xa8a8a8
+#define TOP_BAR_W    192         /* HUD_NAV_BAR_TOP: ширина полоски = ширина области стрелки */
+#define TOP_BAR_H    4
+#if HUD_NAV_BAR_TOP
+#define NAV_DY       13          /* статичные стрелки опущены: свободное место над ними (до бара) = под ними (до дистанции) */
+#define ANIM_DY      6           /* кадр анимации 192x130: те же отступы между баром и строкой дистанции */
+#else
+#define NAV_DY       0
+#define ANIM_DY      0
+#endif
 #define NAV_BOTTOM_Y 165         /* низ строки «дистанция + малая стрелка» в области навигации (от её верха), px */
 #define C_LINK_BLE   0x1f4fb0   /* BLE подключён */
 #define C_LINK_CAN   0x1e8a3c   /* данные по CAN */
@@ -109,6 +118,7 @@ static lv_obj_t *fuel_bar;               /* расход топлива, пра�
 static lv_obj_t *arrow_ph, *arrow_road, *arrow_img, *arrow_lbl, *nav_dist_lbl, *next_img;
 static lv_obj_t *anim_img;                 /* анимированная стрелка из /arrows.bin (кадр на чёрном фоне) */
 static lv_obj_t *bar_seg[16];
+static lv_obj_t *top_bar, *top_fill;      /* HUD_NAV_BAR_TOP: тонкая полоска прогресса над стрелкой */
 static lv_obj_t *route_icon, *route_lbl;
 static lv_obj_t *speed_lbl;
 static lv_obj_t *acc_dot, *acc_speed_lbl;   /* acc_dot — значок установки скорости ACC */
@@ -482,6 +492,9 @@ void    hud_set_cams(bool on)        { g_cams_on = on; }
 bool    hud_get_cams(void)           { return g_cams_on; }
 void    hud_set_cam_beep(bool on)    { g_cam_beep = on; }
 bool    hud_get_cam_beep(void)       { return g_cam_beep; }
+static volatile bool    g_anim_on = HUD_ANIM_ON;          /* анимированные стрелки: показ (нужен /arrows.bin) */
+void    hud_set_anim(bool on)        { g_anim_on = on; }
+bool    hud_get_anim(void)           { return g_anim_on; }
 void    hud_set_psd(bool on)         { g_psd = on; }
 bool    hud_get_psd(void)            { return g_psd; }
 void    hud_set_accel_bar(bool on)   { g_accel = on; }
@@ -664,6 +677,33 @@ static void update_brightness(const HudData *d, uint32_t now)
 /* ============================================================================
    Обновление экрана — lv_timer, 50 мс, внутри задачи LVGL (под мьютексом)
    ========================================================================== */
+/* Анимация стрелки: цикл всех кадров манёвра за HUD_ANIM_PERIOD_MS по кругу. Кадр выбирается по времени; зовётся и из
+   hud_update_cb (50 мс), и из быстрого таймера anim_timer_cb (16 мс) — иначе кадры привязаны к сетке 50 мс и идут рывками. */
+static int      g_anim_run = -1;                 /* индекс играющей анимации или -1 (пишет hud_update_cb) */
+static int      an_la = -1, an_lf = -1;
+static uint32_t an_t0;
+
+static bool anim_step(int aidx, uint32_t tnow)
+{
+    int nf = hud_anim_frames(aidx);
+    if (nf <= 0) return false;
+    if (aidx != an_la) an_t0 = tnow;                                      /* смена манёвра — цикл с первого кадра */
+    int fr = (int)((((tnow - an_t0) % HUD_ANIM_PERIOD_MS) * (uint32_t)nf) / HUD_ANIM_PERIOD_MS);
+    if (aidx == an_la && fr == an_lf) return true;
+    const lv_img_dsc_t *fd = hud_anim_frame(aidx, fr);
+    if (!fd) { an_la = -1; an_lf = -1; return false; }
+    lv_img_set_src(anim_img, fd);
+    an_la = aidx; an_lf = fr;
+    return true;
+}
+
+static void anim_timer_cb(lv_timer_t *t)
+{
+    (void)t;
+    int ai = g_anim_run;
+    if (ai >= 0 && hud_anim_ready()) anim_step(ai, hud_now_ms());
+}
+
 static void hud_update_cb(lv_timer_t *t)
 {
     (void)t;
@@ -1110,39 +1150,29 @@ static void hud_update_cb(lv_timer_t *t)
     }
     vis(arrow_ph, nav);
     bool anim_on = false;       /* true — вместо статичной стрелки показан кадр анимации из /arrows.bin (бар-граф тогда не рисуем) */
-    if (nav && ni != NULL && hud_anim_ready()) {
+    if (nav && ni != NULL && g_anim_on && hud_anim_ready()) {
         static uint8_t am = 0xFF, ad = 0xFF; static int aidx = -1;
-        static int la = -1, lf = -1;
         if (d.man_main != am || d.man_dir != ad) {
             am = d.man_main; ad = d.man_dir;
             char nm[40];
             aidx = anim_name(nm, sizeof nm, am, ad) ? hud_anim_find(nm) : -1;
         }
         if (aidx >= 0) {
-            int nf = hud_anim_frames(aidx);
-            /* кадр — по бар-графу (0..100 %), каждый раз заново: после перестроения маршрута анимация
-               сразу встаёт на нужный кадр, без проигрыша с начала */
-            int pct = ((d.valid & V_MDIST) && d.bargraph <= 100) ? d.bargraph : -1;
-            if (pct >= 0 && HUD_ANIM_BAR_INVERT) pct = 100 - pct;
-            int fr = (pct >= 0) ? (nf > 1 ? (pct * (nf - 1) + 50) / 100 : 0) : ((la == aidx && lf >= 0) ? lf : 0);
-            if (aidx == la && fr == lf) {
-                anim_on = true;
-            } else {
-                const lv_img_dsc_t *fd = hud_anim_frame(aidx, fr);
-                if (fd) { lv_img_set_src(anim_img, fd); la = aidx; lf = fr; anim_on = true; }
-                else { la = -1; lf = -1; }
-            }
+            anim_on = anim_step(aidx, now);
         }
+        g_anim_run = anim_on ? aidx : -1;
+    } else {
+        g_anim_run = -1;
     }
     vis(anim_img, anim_on);
     if (nav) {
         static const NavImg *ni_last = NULL;
         if (ni && ni != ni_last) {
             lv_img_set_src(arrow_img, ni->img);
-            lv_obj_set_pos(arrow_img, ni->x, ni->y);
+            lv_obj_set_pos(arrow_img, ni->x, ni->y + NAV_DY);
             if (ni->road) {
                 lv_img_set_src(arrow_road, ni->road);
-                lv_obj_set_pos(arrow_road, ni->rx, ni->ry);
+                lv_obj_set_pos(arrow_road, ni->rx, ni->ry + NAV_DY);
             }
         }
         ni_last = ni;
@@ -1178,12 +1208,24 @@ static void hud_update_cb(lv_timer_t *t)
     }
 
     int filled = -1;   /* -1 = бар скрыт */
-    if (nav && !anim_on && (d.valid & V_MDIST) && d.bargraph != 0xFF)
+    if (nav && (HUD_NAV_BAR_TOP || !anim_on) && (d.valid & V_MDIST) && d.bargraph != 0xFF)
         filled = d.bargraph * 16 / 100;
+#if HUD_NAV_BAR_TOP
+    vis(top_bar, filled >= 0);
+    if (filled >= 0) {
+        int pct = HUD_ANIM_BAR_INVERT ? 100 - d.bargraph : d.bargraph;   /* как у анимации: полоска растёт к манёвру */
+        int w = pct * TOP_BAR_W / 100;
+        if (w < 0) w = 0;
+        if (lv_obj_get_width(top_fill) != w) lv_obj_set_width(top_fill, w < 1 ? 1 : w);
+        vis(top_fill, w > 0);
+    }
+    for (int i = 0; i < 16; i++) vis(bar_seg[i], false);
+#else
     for (int i = 0; i < 16; i++) {
         vis(bar_seg[i], filled >= 0);
         if (filled >= 0) set_bg_color(bar_seg[i], i < filled ? C_BAR_ON : C_BAR_OFF);
     }
+#endif
 
     bool dv = nav && (d.valid & V_DEST);
     bool tv = nav && (d.valid & V_TTE);
@@ -1267,7 +1309,7 @@ static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y
 
 /* кнопки: основной экран (B_SND..B_MORE) и дополнительное меню «Ещё» (B_LANG_RU..B_BACK) */
 enum { B_LANG_RU, B_LANG_EN, B_UNIT_KM, B_UNIT_MI, B_VOL_L, B_VOL_G, B_TANK, B_LDR, B_BACK,
-       B_SND, B_TOL, B_VZE, B_PSD, B_ACCEL, B_CAM, B_CBEEP, B_FUEL, B_MORE, B_COUNT };
+       B_SND, B_TOL, B_VZE, B_PSD, B_ACCEL, B_CAM, B_CBEEP, B_FUEL, B_ANIM, B_MORE, B_COUNT };
 enum { G_LANG, G_UNITS, G_VOL, G_TANK, G_LDR, G_COUNT };           /* заголовки колонок доп. меню */
 static lv_obj_t *menu_box, *menu_pg[2], *menu_title[G_COUNT], *menu_btn[B_COUNT], *menu_btn_lbl[B_COUNT];
 static uint32_t  menu_last_touch;
@@ -1321,10 +1363,13 @@ static void menu_refresh(void)
     snprintf(buf, sizeof buf, "%s\n%s", en ? "Fuel" : "Расход",
              g_fmode == 0 ? (en ? "Instant" : "Мгнов.") : g_fmode == 1 ? (en ? "Average" : "Средний") : (en ? "Off" : "Выкл"));
     lv_label_set_text(menu_btn_lbl[B_FUEL], buf);
+    lv_label_set_text(menu_btn_lbl[B_ANIM], en ? "Arrow\nanimation" : "Анимация\nстрелок");
+    if (hud_anim_ready()) lv_obj_clear_flag(menu_btn[B_ANIM], LV_OBJ_FLAG_HIDDEN);       /* нет /arrows.bin — пункта нет */
+    else                  lv_obj_add_flag(menu_btn[B_ANIM], LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(menu_btn_lbl[B_MORE], en ? "More >" : "Ещё >");
     menu_sel(B_SND, false);  menu_sel(B_TOL, false);  menu_sel(B_FUEL, false);  menu_sel(B_MORE, false);
     menu_sw(B_VZE, g_vze);   menu_sw(B_PSD, g_psd);   menu_sw(B_ACCEL, g_accel);
-    menu_sw(B_CAM, g_cams_on);  menu_sw(B_CBEEP, g_cam_beep);
+    menu_sw(B_CAM, g_cams_on);  menu_sw(B_CBEEP, g_cam_beep);  menu_sw(B_ANIM, g_anim_on);
 
     /* дополнительное меню */
     lv_label_set_text(menu_btn_lbl[B_LANG_RU], "Русский");
@@ -1523,6 +1568,7 @@ static void menu_btn_cb(lv_event_t *e)
     case B_ACCEL:   hud_set_accel_bar(!g_accel); break;
     case B_CAM:     hud_set_cams(!g_cams_on); break;
     case B_CBEEP:   hud_set_cam_beep(!g_cam_beep); break;
+    case B_ANIM:    hud_set_anim(!g_anim_on); break;
     case B_SND:     menu_last_touch = hud_now_ms(); ov_open(0); return;
     case B_TOL:     menu_last_touch = hud_now_ms(); ov_open(1); return;
     case B_TANK:    menu_last_touch = hud_now_ms(); ov_open(2); return;
@@ -1721,7 +1767,7 @@ static void build_menu(lv_obj_t *scr)
     #define MKB(id, pg, x, y, w, h) menu_btn[id] = menu_mk_btn(menu_pg[pg], x, y, w, h, &menu_btn_lbl[id])
 
     /* основной экран: 2 ряда по 80 px; ряд 1 — звук, допуск, знаки, ограничение, разгон;
-       ряд 2 — камеры, сигнал камер, расход, [пусто], «Ещё». Колонки ряда 2 — под колонками ряда 1 */
+       ряд 2 — камеры, сигнал камер, расход, анимация стрелок (только с /arrows.bin), «Ещё». Колонки ряда 2 — под колонками ряда 1 */
     {
         const int g = 3, x0 = 3, y1 = 4, y2 = 88, h = 80;
         const int w1[5] = { 100, 110, 125, 172, 113 };
@@ -1730,7 +1776,8 @@ static void build_menu(lv_obj_t *scr)
         MKB(B_VZE,   0, x[2], y1, w1[2], h);  MKB(B_PSD,  0, x[3], y1, w1[3], h);
         MKB(B_ACCEL, 0, x[4], y1, w1[4], h);
         MKB(B_CAM,   0, x[0], y2, w1[0], h);  MKB(B_CBEEP, 0, x[1], y2, w1[1], h);
-        MKB(B_FUEL,  0, x[2], y2, w1[2], h);  MKB(B_MORE,  0, x[4], y2, w1[4], h);
+        MKB(B_FUEL,  0, x[2], y2, w1[2], h);  MKB(B_ANIM,  0, x[3], y2, w1[3], h);
+        MKB(B_MORE,  0, x[4], y2, w1[4], h);
 #if !HUD_CAMS
         lv_obj_add_flag(menu_btn[B_CAM], LV_OBJ_FLAG_HIDDEN);          /* камеры не скомпилированы */
         lv_obj_add_flag(menu_btn[B_CBEEP], LV_OBJ_FLAG_HIDDEN);
@@ -1909,7 +1956,7 @@ void build_hud_mockup(void)
        до манёвра под ней. Область 192x140: стрелка 192x116, строка — ниже. */
     /* анимированная стрелка (если есть /arrows.bin): кадр 208x140 — область стрелки + место бара */
     anim_img = lv_img_create(scr);
-    lv_obj_set_pos(anim_img, LX + 145, 5);
+    lv_obj_set_pos(anim_img, LX + 145, 5 + ANIM_DY);
     lv_obj_add_flag(anim_img, LV_OBJ_FLAG_HIDDEN);
 
     arrow_ph = lv_obj_create(scr);
@@ -2007,6 +2054,25 @@ void build_hud_mockup(void)
 
     /* Бар дистанции */
     {
+#if HUD_NAV_BAR_TOP
+        top_bar = lv_obj_create(scr);
+        lv_obj_remove_style_all(top_bar);
+        lv_obj_set_size(top_bar, TOP_BAR_W, TOP_BAR_H);
+        lv_obj_set_pos(top_bar, LX + 145, 1);
+        lv_obj_set_style_radius(top_bar, TOP_BAR_H / 2, 0);
+        lv_obj_set_style_bg_color(top_bar, lv_color_hex(C_BAR_OFF), 0);
+        lv_obj_set_style_bg_opa(top_bar, LV_OPA_COVER, 0);
+        lv_obj_clear_flag(top_bar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(top_bar, LV_OBJ_FLAG_HIDDEN);
+        top_fill = lv_obj_create(top_bar);
+        lv_obj_remove_style_all(top_fill);
+        lv_obj_set_size(top_fill, 1, TOP_BAR_H);
+        lv_obj_set_pos(top_fill, 0, 0);
+        lv_obj_set_style_radius(top_fill, TOP_BAR_H / 2, 0);
+        lv_obj_set_style_bg_color(top_fill, lv_color_hex(C_BAR_ON), 0);
+        lv_obj_set_style_bg_opa(top_fill, LV_OPA_COVER, 0);
+        lv_obj_clear_flag(top_fill, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+#endif
         int bar_x = LX + 339, bar_y_bottom = 5 + 140;
         int seg_w = 14, seg_h = 7, seg_gap = 2;
         for (int i = 0; i < 16; i++) {
@@ -2149,5 +2215,6 @@ void build_hud_mockup(void)
 #endif
     if (hud_ota_mode()) build_ota(scr);    /* режим обновления: свой экран поверх всего */
     lv_timer_create(hud_update_cb, 50, NULL);
+    lv_timer_create(anim_timer_cb, 16, NULL);
     if (HUD_LOG_HUD) arduino_printf("[hud] экран построен, lv_timer 50 мс запущен\n");
 }
