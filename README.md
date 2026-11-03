@@ -57,16 +57,16 @@ Data is read passively from the I-CAN (infotainment) bus on MLB-Evo or from the 
 | **Fuel to fill up** | Above the speed area on the left, on the gear-indicator line: pump icon and "13 L" / "3.4 gal" — how much fits until the tank is full: `HUD_TANK_L` (54 L) × (100 − level % from `BAP_BC` fct 0x1C). Litres / US gallons in the menu |
 | **Fuel consumption** | 5 px dark-grey strip on the right edge, bottom-up 0–20 L/100 km, blinks above 20. Average = the cluster trip computer "since start" (`BAP_BC`), shown at any speed. Instant only if `Motor_04` is on the bus (not found on I-CAN), from 35 km/h |
 | **Sound** | Startup sound at power-on (original, synthesised by `tools/synth_startup.py`). On-board ES8311 codec and amplifier, own FreeRTOS task — independent of rendering |
-| **Settings menu** | Double tap on the screen (`HUD_MENU_DOUBLE_TAP 0` = single tap), **only while the car is stopped**: the menu closes once moving. **Main screen** (what you change often): Sound (volume 0–100) and Margin (overspeed tolerance 0–20 km/h) open a panel with a slider and − / + buttons (the volume plays a test beep); "Road signs" (VZE) and "Speed limit on the road" (PSD) — toggles, both can be on; Accel; Cameras and Camera alert (on/off, see `HUD_CAMS`; hidden when cameras are not compiled in); Fuel — cycles instant / average / off. Toggles: green on, red off. **More >** (rarely changed): language, units (km / miles), volume (litres / gallons) — the active one green, the others grey; Tank (30–90 L, slider panel); Calibrate sensor (photoresistor, see Hardware). Everything is stored in flash (NVS); the menu closes with a double tap anywhere (not while a slider / calibration panel is open) or after 10 s without touches |
+| **Settings menu** | Double tap on the screen (`HUD_MENU_DOUBLE_TAP 0` = single tap), **only while the car is stopped**: the menu closes once moving. **Main screen** (what you change often): Sound (volume 0–100) and Margin (overspeed tolerance 0–20 km/h) open a panel with a slider and − / + buttons (the volume plays a test beep); "Road signs" (VZE) and "Speed limit on the road" (PSD) — toggles, both can be on; Accel; Cameras and Camera alert (on/off, see `HUD_CAMS`; hidden when cameras are not compiled in); Fuel — cycles instant / average / off; Arrow animation — on/off for the animated navigation arrows (shown only when `/arrows.bin` is loaded; `HUD_ANIM_ON`). Toggles: green on, red off. **More >** (rarely changed): language, units (km / miles), volume (litres / gallons) — the active one green, the others grey; Tank (30–90 L, slider panel); Calibrate sensor (photoresistor, see Hardware). Everything is stored in flash (NVS); the menu closes with a double tap anywhere (not while a slider / calibration panel is open) or after 10 s without touches |
 | **Firmware update (OTA)** | Hold **BOOT** for 1.5 s with the car stopped: the HUD reboots into update mode — Wi-Fi access point `HUD-Update`, the screen shows the password, the address `http://192.168.4.1` and a progress bar. Upload the `.bin` on the page, the HUD flashes it and reboots. See [Updating over Wi-Fi](#6-updating-over-wi-fi-ota) |
-| **Data-source indicator** | Bottom-left, under the navigation arrow. Grey Bluetooth icon with dots = connecting to the sniffer; dark-blue icon = BLE connected; dark-green **CAN** = frames come from the own CAN Pal transceiver. Hidden when there is no data and nothing to connect to |
+| **Data-source indicator** | Top row, between the refuel amount and the gear. Not shown while the TSR dot is lit. Grey Bluetooth icon with dots = connecting to the sniffer; dark-blue icon = BLE connected; dark-green **CAN** = frames come from the own CAN Pal transceiver. Hidden when there is no data and nothing to connect to |
 
 Any field without fresh data is **hidden** instead of showing a stale value
 (timeouts are listed in [Data sources](#data-sources-can)).
 
 ### Version
 
-Current firmware version: **3.1.1** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 3.1.1: camera distance lag at speed fixed — GNSS lead time raised 0.5 → 1.4 s (`CAM_LEAD_S`), held distance keeps counting down. 3.1.0: `HUD_LCD_MIRROR_X` option in `user_config.h` — horizontal mirror of the picture (and of touch) for a HUD read in a windshield reflection; off by default. 3.0.0: new car platform — MQB support (checked on a Skoda Octavia A7) next to MLB-Evo (Audi A4 B9), selected with `HUD_PLATFORM`; MLB-Evo stays the default. 2.1.1: MQB platform map aligned with the SuperMini HUD — `HUD_PLATFORM_MLB_EVO` / `HUD_PLATFORM_MQB`, lead vehicle and gap from 0x30C, lighting wheel from 0x5F0, MQB-specific BLE ACL. 2.1.0: `HUD_PLATFORM` option in `hud_config.h` — `HUD_PLATFORM_MQB` adds the MQB signal map (ACC from 0x2A7 / 0x30C), checked on a Skoda Octavia A7 with Virtual Cockpit; ACC_12/ACC_14, the lighting wheel (0x64F) and the ACC target, distance and lane-keeping fields are not available there yet. 2.0.4: 2.0.4: a camera sign is no longer replaced for a moment by a regular road sign when the camera conditions (heading, HDOP, speed) briefly drop out — the last camera is held for 1.5 s. 2.0.3: speed no longer blinks out on hard braking/acceleration — USB log output cannot block CAN reception any more, RX queue 512 frames, CAN task priority raised, speed is kept for 2 s after the last frame. 2.0.2: any pause in speed frames (0x30B) over 200 ms is logged with the TWAI driver counters. 2.0.1: tighter camera tolerances (`HUD_CAM_CROSS_M` 22 m, `HUD_CAM_DIR_DEG` 35°) against cameras of neighbouring roads. 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
+Current firmware version: **3.3.0** (`HUD_FW_VERSION` in `hud_config.h`; shown on the update page and in the log at start-up). 3.3.0: the animated arrow now loops through all frames of the manoeuvre in 2 s (`HUD_ANIM_PERIOD_MS`) instead of following the bar-graph; the progress to the manoeuvre is shown by a thin bar above the arrow area (`HUD_NAV_BAR_TOP 1`; 0 = the old 16-segment side bar) for both the animated and the usual arrows; the usual arrows moved down to keep equal gaps to the bar and to the distance; new `arrows.bin` — frames regenerated from the original images (cropped, squeezed vertically to 192×130), straight ahead smoothed from 13 to 36 frames; frames change from a separate 16 ms timer and the 90° screen rotation is done in blocks, so the animation is smooth (**the new `arrows.bin` must be uploaded**). 3.2.3: "Arrow animation" toggle in the settings menu — the animated arrows can be switched off in the car (the usual arrows and the bar are drawn then); `HUD_ANIM_ON`. 3.2.2: animated arrows zoomed ×1.25 (empty horizon area cropped; regenerate `arrows.bin`); distance to the manoeuvre and the small next-manoeuvre arrow moved to the bottom strip of the navigation area; the data-source icon moved to the top row between refuel amount and gear (hidden while the TSR dot is lit); `HUD_LOG_TWAI` is off by default. 3.2.1: animated arrows — no floor grid, bar-graph direction inverted (100 % = far). 3.2.0: optional animated navigation arrows from `/arrows.bin` (FATFS) — see [Animated navigation arrows](#animated-navigation-arrows-optional-arrowsbin); without the file nothing changes. 3.1.2: ACC radar waves are drawn whenever ACC is regulating (green car), even with no vehicle ahead; with the white icon only with a lead vehicle. 3.1.1: camera distance lag at speed fixed — GNSS lead time raised 0.5 → 1.4 s (`CAM_LEAD_S`), held distance keeps counting down. 3.1.0: `HUD_LCD_MIRROR_X` option in `user_config.h` — horizontal mirror of the picture (and of touch) for a HUD read in a windshield reflection; off by default. 3.0.0: new car platform — MQB support (checked on a Skoda Octavia A7) next to MLB-Evo (Audi A4 B9), selected with `HUD_PLATFORM`; MLB-Evo stays the default. 2.1.1: MQB platform map aligned with the SuperMini HUD — `HUD_PLATFORM_MLB_EVO` / `HUD_PLATFORM_MQB`, lead vehicle and gap from 0x30C, lighting wheel from 0x5F0, MQB-specific BLE ACL. 2.1.0: `HUD_PLATFORM` option in `hud_config.h` — `HUD_PLATFORM_MQB` adds the MQB signal map (ACC from 0x2A7 / 0x30C), checked on a Skoda Octavia A7 with Virtual Cockpit; ACC_12/ACC_14, the lighting wheel (0x64F) and the ACC target, distance and lane-keeping fields are not available there yet. 2.0.4: 2.0.4: a camera sign is no longer replaced for a moment by a regular road sign when the camera conditions (heading, HDOP, speed) briefly drop out — the last camera is held for 1.5 s. 2.0.3: speed no longer blinks out on hard braking/acceleration — USB log output cannot block CAN reception any more, RX queue 512 frames, CAN task priority raised, speed is kept for 2 s after the last frame. 2.0.2: any pause in speed frames (0x30B) over 200 ms is logged with the TWAI driver counters. 2.0.1: tighter camera tolerances (`HUD_CAM_CROSS_M` 22 m, `HUD_CAM_DIR_DEG` 35°) against cameras of neighbouring roads. 2.0.0: reworked camera warning (GNSS delay and update-rate compensation, turn and flicker filtering, cameras that shoot from behind are announced later), camera database from 7Ways+ with corrected directions and speed + lane-marking cameras, new camera sign layout, road-sign recognition indicator (TSR dot) off by default.
 
 > **Which platform is built by default?** **MLB-Evo (Audi A4 B9)**. This is the car the project was developed on, so the default map is the A4 one. If your car is **MQB** (checked on a Skoda Octavia A7), set `#define HUD_PLATFORM HUD_PLATFORM_MQB` in `hud_config.h` — see [Platform](#platform-hud_platform). Without it ACC will not show: the MQB car sends different frames.
 
@@ -74,28 +74,28 @@ Current firmware version: **3.1.1** (`HUD_FW_VERSION` in `hud_config.h`; shown o
 
 These are not photos or mock-ups: the HUD screen code (`hud_mockup.c`) is built for a PC together with LVGL and fed with frames from real drive logs (the same decoder and the same camera database as in the firmware). 1280×344 = the 640×172 display at 2×.
 
-![ACC and Lane Assist active, speed camera 190 m ahead, right turn](docs/screens/hud_01_acc_lka_camera_nav.png)
-*ACC and Lane Assist active, speed camera 190 m ahead, right turn*
+![ACC and Lane Assist active, speed camera 130 m ahead, right turn](docs/screens/hud_01_acc_lka_camera_nav.png)
+*ACC and Lane Assist active, speed camera 130 m ahead, right turn*
 
 ![Over the camera limit: camera icon turns red, its limit sign flashes, speed digits get the red outline](docs/screens/hud_02_overspeed_camera_alert.png)
 *Over the camera limit: camera icon turns red, its limit sign flashes, speed digits get the red outline*
 
-![Navigation: right turn in 500 m, Lane Assist lines](docs/screens/hud_03_right_turn_nav.png)
-*Navigation: right turn in 500 m, Lane Assist lines*
+![Navigation: turn in 1.4 km, ACC and Lane Assist](docs/screens/hud_03_right_turn_nav.png)
+*Navigation: turn in 1.4 km, ACC and Lane Assist*
 
 <details><summary>More screenshots</summary>
 
-![Straight road, camera 110 m ahead, navigation](docs/screens/hud_04_camera_straight_nav.png)
-*Straight road, camera 110 m ahead, navigation*
+![Straight road, camera 70 m ahead, navigation](docs/screens/hud_04_camera_straight_nav.png)
+*Straight road, camera 70 m ahead, navigation*
 
-![ACC + Lane Assist, camera 260 m ahead](docs/screens/hud_05_acc_lka_camera_highway.png)
-*ACC + Lane Assist, camera 260 m ahead*
+![ACC + Lane Assist, camera 220 m ahead](docs/screens/hud_05_acc_lka_camera_highway.png)
+*ACC + Lane Assist, camera 220 m ahead*
 
-![Right turn in 600 m, set speed](docs/screens/hud_06_right_turn_600m.png)
-*Right turn in 600 m, set speed*
+![Turn in 1.8 km, set speed](docs/screens/hud_06_right_turn_set_speed.png)
+*Turn in 1.8 km, set speed*
 
-![Left turn, camera 220 m ahead](docs/screens/hud_07_left_turn_camera_ahead.png)
-*Left turn, camera 220 m ahead*
+![Left turn in 2.9 km](docs/screens/hud_07_left_turn_nav.png)
+*Left turn in 2.9 km*
 
 ![Lane Assist lines (yellow = on but not holding), navigation](docs/screens/hud_08_lka_lines_nav.png)
 *Lane Assist lines (yellow = on but not holding), navigation*
@@ -341,6 +341,7 @@ Mobile cameras / tripods are not in the Datakam base and are not supported (they
 | `HUD_VOLUME_GAL` / `HUD_TANK_L` | `0` / `54` | "fuel to fill up" in gallons on first boot / tank size, L on first boot (then from the menu: More → Tank, 30–90 L) |
 | `HUD_SNIFFER_NAME` | `"S3-CAN-Sniffer"` | advertised name of the sniffer |
 | `HUD_LOG_BLE` | `1` | `[BLE]` sniffer connection, ACL write and read-back, errors |
+| `HUD_LOG_TWAI` | `0` | `[TWAI]` own CAN controller: start, errors, bus recovery, speed-frame gaps over 200 ms with driver counters |
 | `HUD_LOG_SRC` | `1` | `[src]` which source is currently used (AUTO) |
 | `HUD_LOG_STAT` | `0` | `[BLE]` every 10 s: frames, losses, max speed-frame gap |
 | `HUD_LOG_CAN` | `0` | `[CAN]` every 10 s: per-ID counters and last data |
@@ -606,6 +607,22 @@ Everything else is drawn by the script from scratch.
 
 Graphics flash usage: ~40 KB icons and car view + ~200 KB arrows.
 
+### Animated navigation arrows (optional, `arrows.bin`)
+
+Besides the static arrows from `hud_nav_images`, the HUD can draw an animated perspective view of the manoeuvre (road, junction, roundabout, arrow) from the file `/arrows.bin` in the FATFS partition. **Without the file nothing changes**: the usual arrows and the 16-segment distance bar are drawn.
+
+![Animated arrow: turn in 500 m](docs/screens/hud_anim_01_turn_500m.png)
+![Animated arrow: right turn in 400 m, the road runs towards the junction](docs/screens/hud_anim_02_turn_400m.png)
+![Animated arrow: turn in 700 m, camera 40 m ahead](docs/screens/hud_anim_03_camera_ahead.png)
+![Animated arrow: U-turn in 300 m](docs/screens/hud_anim_04_uturn.png)
+
+![Animated arrow: approaching a U-turn, 10 s in real time, the progress bar on top grows](docs/screens/hud_anim_turn.gif)
+
+- The animation does not depend on the bar-graph: it loops through all frames of the manoeuvre from the first to the last in `HUD_ANIM_PERIOD_MS` (2 s), over and over; when the manoeuvre changes it starts again from the first frame. The progress to the manoeuvre is shown by the thin bar above the arrow (`HUD_NAV_BAR_TOP 1`, default; 0 = the old 16-segment side bar, hidden while an animation plays). In the car the bar-graph turned out to run the other way (100 % = far), so `HUD_ANIM_BAR_INVERT` is 1 by default; set it to 0 if your navigation does it the other way round. For left-hand traffic set `HUD_LEFT_HAND_TRAFFIC 1`. A separate 16 ms LVGL timer changes the frames (the main update runs every 50 ms), so the loop stays even.
+- The file is built from a folder of PNG frames (`<manoeuvre>.p<N>.png`, 328×180, a floor-grid background `blank.png` and `frames.idx`) by `python tools/gen_arrow_anim.py <folder> arrows.bin` (needs `pillow numpy lz4`). The empty part of every frame is cropped (the same rectangle `CROP` for all frames), the content is squeezed vertically to 192×130 so there is room for the bar above and the distance below, and the straight-ahead animation (13 source frames) is smoothed to 36 by blending neighbours (`SMOOTH`). The floor grid is cut out (it is not stored), the frames only hold the road and the arrow on black, 16 colours, every frame is an independent LZ4 block: about 3.1 MB for 1692 frames.
+- Upload: the same page as the camera database (hold **BOOT**, `http://192.168.4.1`, block "Camera database"), choose `arrows.bin`; the type is recognised by its header. At start the file is read into PSRAM (~3 MB), a frame is unpacked in about a millisecond only when it changes.
+- A ready-made file is in the repository: [`arrows/arrows.bin`](arrows/arrows.bin) (the frames it was built from are not included).
+
 ### Choosing the navigation arrow
 
 | MainElement | Maneuver | Image |
@@ -709,6 +726,7 @@ several times (noting the times), then look for bits that change at those moment
 ├── tools/
 │   ├── gen_hud_images.py      icon and car view generator
 │   ├── gen_nav_images.py      arrow generator
+│   ├── gen_arrow_anim.py      packs animated arrow frames into arrows.bin
 │   ├── can_bitdiff.py         find changing bits in a log
 │   ├── gen_cams.py            7Ways+ / speedcamonline.ru (iGo-ext) + Datakam -> cams.bin (camera database)
 │   ├── cams_exclude.txt       false cameras to drop from cams.bin (gen_cams.py --exclude)
@@ -741,6 +759,7 @@ several times (noting the times), then look for bits that change at those moment
     ├── psd_speedlimit.c/.h        speed limits from PSD (MIB route prediction)
     ├── cam_alert.c/.h             speed cameras ahead from GNSS position, heading and speed (pure C)
     ├── hud_cams.cpp/.h            loads /cams.bin from the FATFS partition into PSRAM
+    ├── hud_anim.c/.h, hud_anim.cpp  optional animated arrows: /arrows.bin -> PSRAM, LZ4 unpack of a frame
     ├── hud_images.c/.h            icons and car view (generated)
     ├── hud_nav_images.c/.h        navigation arrows (generated)
     ├── hud_font_*.c               Montserrat / Roboto Condensed fonts (generated)
@@ -845,5 +864,6 @@ If you do not agree with these terms, do not build or use the Project.
 - openpilot — meaning of the Lane Assist signals.
 - revag-bap — BAP framing.
 - [Montserrat](https://github.com/JulietaUla/Montserrat) and [Roboto Condensed](https://github.com/googlefonts/roboto-classic) — fonts (SIL OFL 1.1).
+- [chefranov](https://github.com/chefranov/mhi2-au37x-carplay) — thanks for the navigation arrow animation used in the animated arrows (`arrows.bin`).
 - Waveshare — BSP and examples for the ESP32-S3-Touch-LCD-3.49.
 - LVGL, NimBLE-Arduino, [esp_codec_dev](https://components.espressif.com/components/espressif/esp_codec_dev) (Espressif, Apache-2.0).

@@ -121,7 +121,7 @@ progress{width:100%;height:20px}#m{margin-top:12px;min-height:24px}small{color:#
 <button id="b" onclick="up()">Загрузить / Upload</button>
 <progress id="p" value="0" max="100" style="display:none"></progress><div id="m"></div>
 <hr><h1>База камер / camera database</h1>
-<p><small>cams.bin (tools/gen_cams.py)</small></p>
+<p><small>cams.bin (tools/gen_cams.py) или / or arrows.bin (tools/gen_arrow_anim.py)</small></p>
 <p>Состояние / status: <b>%CAMS%</b></p>
 <input type="file" id="g" accept=".bin"><br>
 <button id="c" onclick="upc()">Загрузить базу / Upload database</button>
@@ -132,7 +132,7 @@ progress{width:100%;height:20px}#m{margin-top:12px;min-height:24px}small{color:#
 <p><a href="/logs">Открыть журналы с SD-карты / Open logs from the SD card</a></p>
 <script>
 function upc(){var f=document.getElementById('g').files[0],m=document.getElementById('n'),p=document.getElementById('q');
-if(!f){m.textContent='Выберите cams.bin / choose cams.bin';return}
+if(!f){m.textContent='Выберите cams.bin или arrows.bin / choose cams.bin or arrows.bin';return}
 var x=new XMLHttpRequest(),d=new FormData();d.append('cams',f,'cams.bin');p.style.display='block';
 x.upload.onprogress=function(e){if(e.lengthComputable)p.value=100*e.loaded/e.total};
 x.onload=function(){m.textContent=x.status==200?'Готово, HUD перезагружается / Done, rebooting':'Ошибка / Error: '+x.responseText};
@@ -184,7 +184,7 @@ static void on_upload()
 }
 
 /* ---------------- база камер -> /cams.bin во флеше (FATFS) ---------------- */
-static bool    s_cam_ok, s_cam_started;
+static bool    s_cam_ok, s_cam_started, s_cam_anm;     /* s_cam_anm: принимаем arrows.bin (ANM1), а не cams.bin (CAM1) */
 static File    s_cam_file;
 static size_t  s_cam_len;
 static char    s_cam_err[48];
@@ -198,20 +198,34 @@ static void cam_fail(const char *why)
     s_cam_started = false;
 }
 
+/* что лежит в /arrows.bin во флеше (для страницы портала); FATFS должен быть смонтирован */
+static String arrows_file_status()
+{
+    File f = FFat.open("/arrows.bin", "r");
+    if (!f) return "нет (обычные стрелки) / none (static arrows)";
+    uint8_t h[16] = {0};
+    size_t sz = f.size();
+    bool rd = f.read(h, 16) == 16;
+    f.close();
+    if (!rd || memcmp(h, "ANM1", 4) != 0) return "повреждён / bad file";
+    return String("в флеше: ") + String((unsigned)(h[8] | (h[9] << 8))) + " анимаций, " + String((unsigned)(sz / 1024)) + " КБ / in flash";
+}
+
 /* что лежит в /cams.bin во флеше (для страницы портала) */
 static String cams_file_status()
 {
     if (!FFat.begin(false)) return "раздел FATFS не смонтирован / FATFS not mounted";
+    String arr = String(" · стрелки / arrows: ") + arrows_file_status();
     File f = FFat.open("/cams.bin", "r");
-    if (!f) { FFat.end(); return "файла нет / no file"; }
+    if (!f) { FFat.end(); return "файла нет / no file" + arr; }
     uint32_t h[4] = {0};
     size_t sz = f.size();
     bool rd = f.read((uint8_t *)h, 16) == 16;
     f.close(); FFat.end();
-    if (!rd || memcmp(h, "CAM1", 4) != 0) return "файл повреждён (нет CAM1) / bad file, size " + String((unsigned)sz);
-    if (sz != 16 + (size_t)h[1] * 12) return "размер не сходится с заголовком / size mismatch, " + String((unsigned)sz);
+    if (!rd || memcmp(h, "CAM1", 4) != 0) return "файл повреждён (нет CAM1) / bad file, size " + String((unsigned)sz) + arr;
+    if (sz != 16 + (size_t)h[1] * 12) return "размер не сходится с заголовком / size mismatch, " + String((unsigned)sz) + arr;
     char b[24]; snprintf(b, sizeof b, "%06u", (unsigned)h[2]);
-    return String("в флеше: ") + String((unsigned)h[1]) + " камер, от " + b + ", " + String((unsigned)(sz / 1024)) + " КБ / in flash";
+    return String("в флеше: ") + String((unsigned)h[1]) + " камер, от " + b + ", " + String((unsigned)(sz / 1024)) + " КБ / in flash" + arr;
 }
 
 /* отчёт о прошлом сеансе (снимок пишется при удержании BOOT, см. hud_diag.h) */
@@ -250,7 +264,7 @@ static void on_cams_upload()
 {
     HTTPUpload &u = s_srv->upload();
     if (u.status == UPLOAD_FILE_START) {
-        s_cam_ok = false; s_cam_started = false; s_cam_len = 0; s_cam_err[0] = 0;
+        s_cam_ok = false; s_cam_started = false; s_cam_anm = false; s_cam_len = 0; s_cam_err[0] = 0;
         set_state(HUD_OTA_UPLOAD, 0, "");
         hud_log_write("[ota] приём базы камер\n");
         if (!FFat.begin(true)) { cam_fail("no FATFS partition"); return; }
@@ -259,7 +273,11 @@ static void on_cams_upload()
         if (!s_cam_file) { cam_fail("cannot create file"); return; }
         s_cam_started = true;
     } else if (u.status == UPLOAD_FILE_WRITE && s_cam_started) {
-        if (s_cam_len == 0 && (u.currentSize < 16 || memcmp(u.buf, "CAM1", 4) != 0)) { cam_fail("not a cams.bin"); return; }
+        if (s_cam_len == 0) {                                    /* что за файл — по первым четырём байтам */
+            if (u.currentSize >= 16 && memcmp(u.buf, "CAM1", 4) == 0)      s_cam_anm = false;
+            else if (u.currentSize >= 16 && memcmp(u.buf, "ANM1", 4) == 0) s_cam_anm = true;
+            else { cam_fail("not cams.bin / arrows.bin"); return; }
+        }
         if (s_cam_file.write(u.buf, u.currentSize) != u.currentSize) { cam_fail("flash write failed (full?)"); return; }
         s_cam_len += u.currentSize;
         size_t tot = s_srv->clientContentLength();
@@ -269,14 +287,16 @@ static void on_cams_upload()
         s_cam_file.close();
         File f = FFat.open("/cams.tmp", "r");
         uint32_t hdr[4] = {0};
-        bool good = f && f.read((uint8_t *)hdr, 16) == 16 && f.size() == 16 + (size_t)hdr[1] * 12;
+        bool good = f && f.read((uint8_t *)hdr, 16) == 16 &&
+                    (s_cam_anm ? (f.size() == hdr[3]) : (f.size() == 16 + (size_t)hdr[1] * 12));   /* ANM1: размер файла в заголовке со смещения 12 */
         if (f) f.close();
         if (!good) { cam_fail("size does not match the header"); return; }
-        FFat.remove("/cams.bin");
-        if (!FFat.rename("/cams.tmp", "/cams.bin")) { cam_fail("rename failed"); return; }
+        const char *dst = s_cam_anm ? "/arrows.bin" : "/cams.bin";
+        FFat.remove(dst);
+        if (!FFat.rename("/cams.tmp", dst)) { cam_fail("rename failed"); return; }
         s_cam_ok = true; s_cam_started = false;
         set_state(HUD_OTA_DONE, 100, "");
-        hud_log_write("[ota] база камер записана\n");
+        hud_log_write(s_cam_anm ? "[ota] анимированные стрелки записаны\n" : "[ota] база камер записана\n");
     } else if (u.status == UPLOAD_FILE_ABORTED) {
         if (s_cam_started) cam_fail("upload aborted");
     }
