@@ -30,6 +30,8 @@ void    hud_set_tank(uint8_t l);       /* объём бака, л, 30..90 */
 uint8_t hud_get_tank(void);
 void    hud_set_cams(bool on);         /* камеры: показ (HUD_CAMS) */
 bool    hud_get_cams(void);
+void    hud_set_anim(bool on);         /* анимированные стрелки навигации (если есть /arrows.bin) */
+bool    hud_get_anim(void);
 void    hud_set_cam_beep(bool on);     /* камеры: сигнал */
 bool    hud_get_cam_beep(void);
 void    hud_set_accel_bar(bool on);    /* бар ускорения вкл/выкл                        */

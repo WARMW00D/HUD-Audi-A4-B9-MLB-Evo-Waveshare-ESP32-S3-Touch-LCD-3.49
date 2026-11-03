@@ -345,6 +345,18 @@ static void bc_message(uint8_t fct, const uint8_t *p, uint16_t n)
     taskEXIT_CRITICAL(&s_mux);
 }
 
+#if HUD_LOG_BAP
+/* функция навигации пришла, но данные помечены как невалидные (флаги): печать при смене содержимого —
+   чтобы понять, почему нет ETA / бар-графа / дистанции (например, на дальнем участке маршрута) */
+#define BAP_LOG_DROP(f, p, n) do { \
+        static uint8_t d_f[16]; static uint8_t d_n; uint8_t m_ = (n) > 16 ? 16 : (uint8_t)(n); \
+        if (d_n != m_ + 1 || memcmp(d_f, (p), m_) != 0) { \
+            d_n = m_ + 1; memcpy(d_f, (p), m_); \
+            char hx_[3 * 16 + 1] = ""; int o_ = 0; \
+            for (int k_ = 0; k_ < m_; k_++) o_ += snprintf(hx_ + o_, sizeof hx_ - o_, "%02X ", (p)[k_]); \
+            arduino_printf("[bap] fct 0x%02X: данные невалидны [%u]: %s\n", (f), (unsigned)(n), hx_); } } while (0)
+#endif
+
 static void bap_message(uint16_t hdr, const uint8_t *p, uint16_t n)
 {
     uint8_t opcode = (hdr >> 12) & 7;
@@ -383,6 +395,9 @@ static void bap_message(uint16_t hdr, const uint8_t *p, uint16_t n)
                 touch(S_MDIST);
             } else {
                 s_last[S_MDIST] = 0;
+#if HUD_LOG_BAP
+                BAP_LOG_DROP(0x12, p, n);
+#endif
             }
         }
         break;
@@ -406,6 +421,9 @@ static void bap_message(uint16_t hdr, const uint8_t *p, uint16_t n)
                 touch(S_TTE);
             } else {
                 s_last[S_TTE] = 0;
+#if HUD_LOG_BAP
+                BAP_LOG_DROP(0x16, p, n);
+#endif
             }
         }
         break;

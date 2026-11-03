@@ -482,6 +482,9 @@ void    hud_set_cams(bool on)        { g_cams_on = on; }
 bool    hud_get_cams(void)           { return g_cams_on; }
 void    hud_set_cam_beep(bool on)    { g_cam_beep = on; }
 bool    hud_get_cam_beep(void)       { return g_cam_beep; }
+static volatile bool    g_anim_on = HUD_ANIM_ON;          /* анимированные стрелки: показ (нужен /arrows.bin) */
+void    hud_set_anim(bool on)        { g_anim_on = on; }
+bool    hud_get_anim(void)           { return g_anim_on; }
 void    hud_set_psd(bool on)         { g_psd = on; }
 bool    hud_get_psd(void)            { return g_psd; }
 void    hud_set_accel_bar(bool on)   { g_accel = on; }
@@ -1110,7 +1113,7 @@ static void hud_update_cb(lv_timer_t *t)
     }
     vis(arrow_ph, nav);
     bool anim_on = false;       /* true — вместо статичной стрелки показан кадр анимации из /arrows.bin (бар-граф тогда не рисуем) */
-    if (nav && ni != NULL && hud_anim_ready()) {
+    if (nav && ni != NULL && g_anim_on && hud_anim_ready()) {
         static uint8_t am = 0xFF, ad = 0xFF; static int aidx = -1;
         static int la = -1, lf = -1;
         if (d.man_main != am || d.man_dir != ad) {
@@ -1267,7 +1270,7 @@ static lv_obj_t *car_img(lv_obj_t *parent, const lv_img_dsc_t *src, int x, int y
 
 /* кнопки: основной экран (B_SND..B_MORE) и дополнительное меню «Ещё» (B_LANG_RU..B_BACK) */
 enum { B_LANG_RU, B_LANG_EN, B_UNIT_KM, B_UNIT_MI, B_VOL_L, B_VOL_G, B_TANK, B_LDR, B_BACK,
-       B_SND, B_TOL, B_VZE, B_PSD, B_ACCEL, B_CAM, B_CBEEP, B_FUEL, B_MORE, B_COUNT };
+       B_SND, B_TOL, B_VZE, B_PSD, B_ACCEL, B_CAM, B_CBEEP, B_FUEL, B_ANIM, B_MORE, B_COUNT };
 enum { G_LANG, G_UNITS, G_VOL, G_TANK, G_LDR, G_COUNT };           /* заголовки колонок доп. меню */
 static lv_obj_t *menu_box, *menu_pg[2], *menu_title[G_COUNT], *menu_btn[B_COUNT], *menu_btn_lbl[B_COUNT];
 static uint32_t  menu_last_touch;
@@ -1321,10 +1324,13 @@ static void menu_refresh(void)
     snprintf(buf, sizeof buf, "%s\n%s", en ? "Fuel" : "Расход",
              g_fmode == 0 ? (en ? "Instant" : "Мгнов.") : g_fmode == 1 ? (en ? "Average" : "Средний") : (en ? "Off" : "Выкл"));
     lv_label_set_text(menu_btn_lbl[B_FUEL], buf);
+    lv_label_set_text(menu_btn_lbl[B_ANIM], en ? "Arrow\nanimation" : "Анимация\nстрелок");
+    if (hud_anim_ready()) lv_obj_clear_flag(menu_btn[B_ANIM], LV_OBJ_FLAG_HIDDEN);       /* нет /arrows.bin — пункта нет */
+    else                  lv_obj_add_flag(menu_btn[B_ANIM], LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(menu_btn_lbl[B_MORE], en ? "More >" : "Ещё >");
     menu_sel(B_SND, false);  menu_sel(B_TOL, false);  menu_sel(B_FUEL, false);  menu_sel(B_MORE, false);
     menu_sw(B_VZE, g_vze);   menu_sw(B_PSD, g_psd);   menu_sw(B_ACCEL, g_accel);
-    menu_sw(B_CAM, g_cams_on);  menu_sw(B_CBEEP, g_cam_beep);
+    menu_sw(B_CAM, g_cams_on);  menu_sw(B_CBEEP, g_cam_beep);  menu_sw(B_ANIM, g_anim_on);
 
     /* дополнительное меню */
     lv_label_set_text(menu_btn_lbl[B_LANG_RU], "Русский");
@@ -1523,6 +1529,7 @@ static void menu_btn_cb(lv_event_t *e)
     case B_ACCEL:   hud_set_accel_bar(!g_accel); break;
     case B_CAM:     hud_set_cams(!g_cams_on); break;
     case B_CBEEP:   hud_set_cam_beep(!g_cam_beep); break;
+    case B_ANIM:    hud_set_anim(!g_anim_on); break;
     case B_SND:     menu_last_touch = hud_now_ms(); ov_open(0); return;
     case B_TOL:     menu_last_touch = hud_now_ms(); ov_open(1); return;
     case B_TANK:    menu_last_touch = hud_now_ms(); ov_open(2); return;
@@ -1721,7 +1728,7 @@ static void build_menu(lv_obj_t *scr)
     #define MKB(id, pg, x, y, w, h) menu_btn[id] = menu_mk_btn(menu_pg[pg], x, y, w, h, &menu_btn_lbl[id])
 
     /* основной экран: 2 ряда по 80 px; ряд 1 — звук, допуск, знаки, ограничение, разгон;
-       ряд 2 — камеры, сигнал камер, расход, [пусто], «Ещё». Колонки ряда 2 — под колонками ряда 1 */
+       ряд 2 — камеры, сигнал камер, расход, анимация стрелок (только с /arrows.bin), «Ещё». Колонки ряда 2 — под колонками ряда 1 */
     {
         const int g = 3, x0 = 3, y1 = 4, y2 = 88, h = 80;
         const int w1[5] = { 100, 110, 125, 172, 113 };
@@ -1730,7 +1737,8 @@ static void build_menu(lv_obj_t *scr)
         MKB(B_VZE,   0, x[2], y1, w1[2], h);  MKB(B_PSD,  0, x[3], y1, w1[3], h);
         MKB(B_ACCEL, 0, x[4], y1, w1[4], h);
         MKB(B_CAM,   0, x[0], y2, w1[0], h);  MKB(B_CBEEP, 0, x[1], y2, w1[1], h);
-        MKB(B_FUEL,  0, x[2], y2, w1[2], h);  MKB(B_MORE,  0, x[4], y2, w1[4], h);
+        MKB(B_FUEL,  0, x[2], y2, w1[2], h);  MKB(B_ANIM,  0, x[3], y2, w1[3], h);
+        MKB(B_MORE,  0, x[4], y2, w1[4], h);
 #if !HUD_CAMS
         lv_obj_add_flag(menu_btn[B_CAM], LV_OBJ_FLAG_HIDDEN);          /* камеры не скомпилированы */
         lv_obj_add_flag(menu_btn[B_CBEEP], LV_OBJ_FLAG_HIDDEN);
