@@ -595,18 +595,16 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
         fuel_update((uint16_t)sig(d, 48, 15));
         break;
 #if HUD_PLATFORM == HUD_PLATFORM_MQB
-    case 0x30C: { /* MQB: ACC_02 — заданная скорость 16|6: км/ч = 5·v+5, 63 = не задана (проверено на Passat: 60, 70).
-                     Статус ACC_Status_Anzeige 61|3 — то же значение, что ACC_14 16|3 на A4: 2 ожидание, 3 активен, 4 перехват
-                     педалью, 0 выкл. (по логу Passat 29.10 совпадает с прежним битом 58 в 0x2A7 в 99 % кадров) */
+    case 0x30C: {
         s_data.acc_status = (uint8_t)sig(d, 61, 3);
         uint32_t v = sig(d, 16, 6);
-        s_data.acc_set_raw = (v == 63) ? 0x3FF : (uint16_t)((((v * 5u + 5u) * 100u) + 16u) / 32u);   /* км/ч -> ×0.32 */
-        /* Машина впереди: 45|2 — как в ACC_12 на A4 (в активном ACC на Октавии 94 % кадров = 1,
-           остальные 0; ⚠️ по совпадению с раскладкой A4, не по документации). Зазор 37|3. */
-        s_data.acc_object = sig(d, 45, 2);
-        s_data.acc_gap    = sig(d, 37, 3);
+        s_data.acc_set_raw = (v == 63) ? 0x3FF : (uint16_t)((((v * 5u + 5u) * 100u) + 16u) / 32u);
+        s_data.acc_object  = sig(d, 45, 2);              /* ACC_Relevantes_Objekt_02 (⚠️ проверить бит по DBC) */
+        s_data.acc_abstand = (uint16_t)sig(d, 24, 10);   /* ← новое: ACC_Abstandsindex */
+        s_data.acc_gap     = sig(d, 37, 3);
         touch(S_ACC);
-        break; }
+        break;
+    }
 #else
     case 0x2A6: /* ACC_12 */
         s_data.acc_set_raw    = sig(d, 12, 10);

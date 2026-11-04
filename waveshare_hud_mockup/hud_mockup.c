@@ -905,7 +905,19 @@ static void hud_update_cb(lv_timer_t *t)
        1 — цель ACC: только при включённом ACC, цветом ACC;
        2 — предупреждение (опасная дистанция): ВСЕГДА, даже при выключенном ACC, красным */
     bool obj_warn = (d.valid & V_ACC) && d.acc_object == 2;
-    bool obj = obj_warn || (acc_on && d.acc_object == 1);
+
+ #if HUD_PLATFORM == HUD_PLATFORM_MQB
+    /* MQB: помимо ACC_Relevantes_Objekt_02, машина впереди определяется по ACC_Abstandsindex:
+       0 и 1022 = «серая дорога» (Sonderanzeige_graue_Fahrbahn) — цели нет,
+       1..1021 и 1023 (зел./красн. зона) — цель есть.
+       В логах Relevantes_Objekt часто = 0 даже когда впереди есть машина, а Abstandsindex
+       при этом > 0 (пример: Abstandsindex = 972 при Relevantes_Objekt = 0). */
+    bool abstand_lead = (d.valid & V_ACC) && d.acc_abstand != 0 && d.acc_abstand != 1022;
+    bool obj          = obj_warn || (acc_on && (d.acc_object == 1 || abstand_lead));
+#else
+    bool obj          = obj_warn || (acc_on && d.acc_object == 1);
+#endif
+
     vis(as_front, obj);
     if (obj) set_img_color(as_front, obj_warn ? C_OBJ_WARN : acc_col);
     /* радар (волны): пока ACC регулирует (status 3, машинка зелёная) — всегда, даже без машины впереди;
