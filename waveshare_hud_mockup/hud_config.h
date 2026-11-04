@@ -265,6 +265,8 @@
 #define HUD_LOG_TWAI   0   /* [TWAI] запуск контроллера, ошибки, восстановление шины        */
 #define HUD_LOG_SRC    1   /* [src]  какой источник сейчас используется (AUTO)              */
 #define HUD_LOG_STAT   0   /* [BLE]/[TWAI] раз в 10 с: кадров, потери, макс. пауза скорости   */
+#define HUD_PERF_LOG   0   /* [perf] раз в HUD_PERF_LOG_MS: сколько раз LVGL перерисовал экран, время отрисовки+вывода, глубина очереди CAN */
+#define HUD_PERF_LOG_MS 5000
 #define HUD_LOG_CAN    0   /* [CAN]  раз в 10 с: счётчики и последние данные по каждому ID    */
 #define HUD_LOG_DIM    0   /* [dim]  раз в 10 с: данные Dimmung_01 и выставленная подсветка   */
 #define HUD_LOG_BAP    0   /* [nav]/[bap] смена манёвра, неизвестные коды, прочие функции навигации */
