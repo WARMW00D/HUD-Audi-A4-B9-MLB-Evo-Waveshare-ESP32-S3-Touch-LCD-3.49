@@ -132,6 +132,7 @@ static void decode_lka(const uint8_t *d)
     s_data.lka_line_l = ll;
     s_data.lka_line_r = lr;
     s_data.lka_warn   = warn;
+    s_data.lka_green  = green ? 1 : 0; 
     /* Лог 29.09 (стоянка): при включении LKA индикаторы 61/62 НЕ меняются,
        а линии переходят 0 -> 1 ("не видна"). Поэтому "включён" = любая
        линия не 0; индикаторы уточняют состояние, когда они есть. */
