@@ -634,18 +634,21 @@ static int light_lux(const HudData *d)
 
 static void update_brightness(const HudData *d, uint32_t now)
 {
-    static int cur = -1;
+    static int   cur   = -1;          /* реально выставлено в ШИМ        */
+    static float cur_f = -1.0f;       /* сглаженная (EMA) подсветка      */
     hud_light_poll();
     int lux = light_lux(d);
-    /* колёсико 0..1: BCM1_04; нет — DI_KL_58xd в темноте (там он = колёсико 10..100); нет — по умолчанию */
+
+    /* колёсико 0..1: BCM1_04; нет — DI_KL_58xd в темноте; нет — по умолчанию */
     float w;
-    if (d->valid & V_WHEEL)                                   w = (d->wheel_pct - 1) / 99.0f;
+    if (d->valid & V_WHEEL)                                       w = (d->wheel_pct - 1) / 99.0f;
     else if ((d->valid & V_DIM) && d->dim_raw <= 100 && lux <= 0) w = (d->dim_raw - 10) / 90.0f;
-    else                                                      w = (HUD_WHEEL_DEFAULT - 1) / 99.0f;
+    else                                                          w = (HUD_WHEEL_DEFAULT - 1) / 99.0f;
     if (w < 0) w = 0;
     if (w > 1) w = 1;
+
     int target = HUD_BRIGHT_NO_DATA;
-    float t = 0;
+    float t = 0;                                  /* объявлено здесь — нужно ниже в логе */
     if (lux >= 0) {
         /* освещённость 0..1, логарифмически между DARK и BRIGHT */
         float lo = log10f(HUD_LIGHT_LUX_DARK + 10.0f), hi = log10f(HUD_LIGHT_LUX_BRIGHT + 10.0f);
@@ -656,22 +659,39 @@ static void update_brightness(const HudData *d, uint32_t now)
         float bright = HUD_BR_BRIGHT_WHEEL_MIN + (HUD_BR_BRIGHT_WHEEL_MAX - HUD_BR_BRIGHT_WHEEL_MIN) * w;
         target = (int)(dark + (bright - dark) * t + 0.5f);
     }
-    if (now < 1500) return;                      /* подсветка ещё не инициализирована в setup() */
-    int next = (cur < 0) ? target
-             : (target > cur) ? (target - cur > HUD_BRIGHT_STEP ? cur + HUD_BRIGHT_STEP : target)
-             : (cur - target > HUD_BRIGHT_STEP ? cur - HUD_BRIGHT_STEP : target);
-    if (next != cur) {
-        cur = next;
-        setUpduty((uint16_t)(255 - cur));        /* ШИМ подсветки инвертирован: 0 = максимум */
-    }
-    /* диагностика: раз в 10 с, что пришло и что выставлено */
-    static uint32_t last_log;
-    if (HUD_LOG_DIM && now - last_log > 10000) {
-        last_log = now;
-        arduino_printf("[dim] свет %d лк (FW %s%u, Boost %u; фоторез. %d мВ) -> %.0f%%, колёсико %s%u%% -> подсветка %d/255\n",
-                       lux, (d->valid & V_RLS) ? "" : "нет ", d->rls_fw * 6u, d->rls_boost, hud_light_mv(), t * 100.0f,
-                       (d->valid & V_WHEEL) ? "" : "нет ", d->wheel_pct, cur);
-    }
+    if (now < 1500) return;                    /* подсветка ещё не инициализирована в setup() */
+
+        /* ---- EMA: постоянная времени HUD_BRIGHT_SMOOTH_MS ----
+         *      expf, чтобы время реакции не зависело от частоты вызова lv_timer (50 мс). */
+        if (cur < 0) {
+            cur_f = target;                        /* первый вызов — без сглаживания */
+        } else {
+            #if HUD_BRIGHT_SMOOTH_MS > 0
+            const float dt = 0.050f;               /* шаг lv_timer, с */
+            const float k  = 1.0f - expf(-dt * 1000.0f / HUD_BRIGHT_SMOOTH_MS);
+            cur_f += (target - cur_f) * k;
+            #else
+            /* выключено — прежний «жёсткий шаг» */
+            if      (target - cur_f >  HUD_BRIGHT_STEP) cur_f += HUD_BRIGHT_STEP;
+            else if (target - cur_f < -HUD_BRIGHT_STEP) cur_f -= HUD_BRIGHT_STEP;
+            else                                        cur_f  = target;
+            #endif
+        }
+        int next = (int)(cur_f + 0.5f);
+        if (next != cur) {
+            cur = next;
+            setUpduty((uint16_t)(255 - cur));     /* ШИМ инвертирован: 0 = максимум */
+        }
+
+        /* диагностика: раз в 10 с */
+        static uint32_t last_log;
+        if (HUD_LOG_DIM && now - last_log > 10000) {
+            last_log = now;
+            arduino_printf("[dim] свет %d лк (FW %s%u, Boost %u; фоторез. %d мВ) -> %.0f%%, колёсико %s%u%% -> подсветка %d/255 (цель %d)\n",
+                           lux, (d->valid & V_RLS) ? "" : "нет ", d->rls_fw * 6u, d->rls_boost, hud_light_mv(),
+                           t * 100.0f,
+                           (d->valid & V_WHEEL) ? "" : "нет ", d->wheel_pct, cur, target);
+        }
 }
 
 /* ============================================================================
