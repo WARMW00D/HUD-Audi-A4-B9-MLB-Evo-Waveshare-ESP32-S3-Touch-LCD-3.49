@@ -227,6 +227,7 @@ static void ble_task(void *)
 #endif
 
     uint32_t last_stat = 0;
+    uint32_t last_none = 0;                    /* когда последний раз писали «сниффер не найден» */
 
     for (;;) {
 #if HUD_DATA_SOURCE == HUD_SRC_AUTO
@@ -279,6 +280,15 @@ static void ble_task(void *)
             if (!fallback) fallback = d;                          /* иначе запомним первое */
         }
         if (!dev) dev = fallback;
+        if (!dev) {                                             /* сниффер не найден за 3 с скана */
+            scan->clearResults();                               /* важно: без clearResults копятся результаты и кончается heap */
+            if (HUD_LOG_BLE && (!last_none || millis() - last_none >= 10000)) {
+                last_none = millis();
+                hud_log_write("[BLE] сниффер не найден — повторяю скан\n");
+            }
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            continue;
+        }
         if (HUD_LOG_BLE) arduino_printf("[BLE] найден %s, подключаюсь\n", dev->getAddress().toString().c_str());
 #if BLE_PASSKEY
         NimBLEAddress dev_addr = dev->getAddress();                  /* копия: dev исчезнет после clearResults() */
