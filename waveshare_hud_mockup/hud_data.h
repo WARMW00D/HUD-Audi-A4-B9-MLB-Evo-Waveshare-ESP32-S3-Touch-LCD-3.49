@@ -80,11 +80,19 @@ typedef struct {
     uint8_t  lka_line_l;     /* LDW_Lernmodus_links: 0 выкл 1 нет 2 видна 3 выход */
     uint8_t  lka_line_r;     /* LDW_Lernmodus_rechts                    */
     uint8_t  lka_warn;       /* бит0 слева, бит1 справа                 */
+    uint8_t  lka_green;      /* LDW_LED_gruen (LDW_02, бит 62):
+                                1 = Lane Assist активно работает.
+                                Для HUD_PLATFORM_MQB — единственный признак показа
+                                линий Lane Assist (зелёные / скрыты). */
     uint8_t  doors;          /* DOOR_*: 1 = открыто                     */
     uint8_t  jam_state;      /* ACC_12.STA_Primaeranz: 0 нет, 1 готов, 2 активен, 3 предупр. */
     uint16_t limiter_raw;    /* 0x31E 12|10: ×0.32 км/ч, 1022 выкл, 1023 вкл без скорости */
     uint8_t  acc_object;     /* ACC_12.ACC_Relevantes_Objekt_02: 0 нет, 1 машина впереди, 2 предупр., 3 пассив */
     uint8_t  acc_gap;        /* ACC_12.ACC_Gesetzte_Zeitluecke: дистанция 1..5, 0 нет */
+    uint16_t acc_abstand;    /* ACC_02 (0x30C, MQB): ACC_Abstandsindex.
+                            0 и 1022 = «серая дорога» (цели нет);
+                            1023 = зел./красн. зона (цель есть);
+                            1..1021 = реальный индекс дистанции (цель есть). */
     uint8_t  aca_lane;       /* ACC_12.ACA_Querfuehrung: 0 нет, 1 пассив, 2 активно, 3 предупр. */
     uint8_t  awv_warn;       /* ACC_15.AWV_Warnung: 0 нет, 1 латентная, 2 предупр., 3 острая,
                                 4 торможение, 5 перехватите управление, 6 при повороте */

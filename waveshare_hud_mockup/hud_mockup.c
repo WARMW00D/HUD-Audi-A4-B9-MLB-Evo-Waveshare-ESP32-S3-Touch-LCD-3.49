@@ -634,18 +634,21 @@ static int light_lux(const HudData *d)
 
 static void update_brightness(const HudData *d, uint32_t now)
 {
-    static int cur = -1;
+    static int   cur   = -1;          /* реально выставлено в ШИМ        */
+    static float cur_f = -1.0f;       /* сглаженная (EMA) подсветка      */
     hud_light_poll();
     int lux = light_lux(d);
-    /* колёсико 0..1: BCM1_04; нет — DI_KL_58xd в темноте (там он = колёсико 10..100); нет — по умолчанию */
+
+    /* колёсико 0..1: BCM1_04; нет — DI_KL_58xd в темноте; нет — по умолчанию */
     float w;
-    if (d->valid & V_WHEEL)                                   w = (d->wheel_pct - 1) / 99.0f;
+    if (d->valid & V_WHEEL)                                       w = (d->wheel_pct - 1) / 99.0f;
     else if ((d->valid & V_DIM) && d->dim_raw <= 100 && lux <= 0) w = (d->dim_raw - 10) / 90.0f;
-    else                                                      w = (HUD_WHEEL_DEFAULT - 1) / 99.0f;
+    else                                                          w = (HUD_WHEEL_DEFAULT - 1) / 99.0f;
     if (w < 0) w = 0;
     if (w > 1) w = 1;
+
     int target = HUD_BRIGHT_NO_DATA;
-    float t = 0;
+    float t = 0;                                  /* объявлено здесь — нужно ниже в логе */
     if (lux >= 0) {
         /* освещённость 0..1, логарифмически между DARK и BRIGHT */
         float lo = log10f(HUD_LIGHT_LUX_DARK + 10.0f), hi = log10f(HUD_LIGHT_LUX_BRIGHT + 10.0f);
@@ -656,22 +659,39 @@ static void update_brightness(const HudData *d, uint32_t now)
         float bright = HUD_BR_BRIGHT_WHEEL_MIN + (HUD_BR_BRIGHT_WHEEL_MAX - HUD_BR_BRIGHT_WHEEL_MIN) * w;
         target = (int)(dark + (bright - dark) * t + 0.5f);
     }
-    if (now < 1500) return;                      /* подсветка ещё не инициализирована в setup() */
-    int next = (cur < 0) ? target
-             : (target > cur) ? (target - cur > HUD_BRIGHT_STEP ? cur + HUD_BRIGHT_STEP : target)
-             : (cur - target > HUD_BRIGHT_STEP ? cur - HUD_BRIGHT_STEP : target);
-    if (next != cur) {
-        cur = next;
-        setUpduty((uint16_t)(255 - cur));        /* ШИМ подсветки инвертирован: 0 = максимум */
-    }
-    /* диагностика: раз в 10 с, что пришло и что выставлено */
-    static uint32_t last_log;
-    if (HUD_LOG_DIM && now - last_log > 10000) {
-        last_log = now;
-        arduino_printf("[dim] свет %d лк (FW %s%u, Boost %u; фоторез. %d мВ) -> %.0f%%, колёсико %s%u%% -> подсветка %d/255\n",
-                       lux, (d->valid & V_RLS) ? "" : "нет ", d->rls_fw * 6u, d->rls_boost, hud_light_mv(), t * 100.0f,
-                       (d->valid & V_WHEEL) ? "" : "нет ", d->wheel_pct, cur);
-    }
+    if (now < 1500) return;                    /* подсветка ещё не инициализирована в setup() */
+
+        /* ---- EMA: постоянная времени HUD_BRIGHT_SMOOTH_MS ----
+         *      expf, чтобы время реакции не зависело от частоты вызова lv_timer (50 мс). */
+        if (cur < 0) {
+            cur_f = target;                        /* первый вызов — без сглаживания */
+        } else {
+            #if HUD_BRIGHT_SMOOTH_MS > 0
+            const float dt = 0.050f;               /* шаг lv_timer, с */
+            const float k  = 1.0f - expf(-dt * 1000.0f / HUD_BRIGHT_SMOOTH_MS);
+            cur_f += (target - cur_f) * k;
+            #else
+            /* выключено — прежний «жёсткий шаг» */
+            if      (target - cur_f >  HUD_BRIGHT_STEP) cur_f += HUD_BRIGHT_STEP;
+            else if (target - cur_f < -HUD_BRIGHT_STEP) cur_f -= HUD_BRIGHT_STEP;
+            else                                        cur_f  = target;
+            #endif
+        }
+        int next = (int)(cur_f + 0.5f);
+        if (next != cur) {
+            cur = next;
+            setUpduty((uint16_t)(255 - cur));     /* ШИМ инвертирован: 0 = максимум */
+        }
+
+        /* диагностика: раз в 10 с */
+        static uint32_t last_log;
+        if (HUD_LOG_DIM && now - last_log > 10000) {
+            last_log = now;
+            arduino_printf("[dim] свет %d лк (FW %s%u, Boost %u; фоторез. %d мВ) -> %.0f%%, колёсико %s%u%% -> подсветка %d/255 (цель %d)\n",
+                           lux, (d->valid & V_RLS) ? "" : "нет ", d->rls_fw * 6u, d->rls_boost, hud_light_mv(),
+                           t * 100.0f,
+                           (d->valid & V_WHEEL) ? "" : "нет ", d->wheel_pct, cur, target);
+        }
 }
 
 /* ============================================================================
@@ -862,17 +882,42 @@ static void hud_update_cb(lv_timer_t *t)
     /* --- значок ACC / Lane Assist ---
        своя машина: есть, если включён ACC или LKA
        машина впереди: ACC включён; волны: ACC регулирует (3) / водитель превышает (4)
-       линии: LKA, цвет — по уровню каждой линии (LDW_02): 2 зелёная (линия распознана),
-       иначе жёлтая (не распознана), оранжевая (мигает) — выход за линию;
-       общий признак LKA_PASSIVE цвет не задаёт (в движении бит 62 не приходит) */
-    bool lka_on = (d.valid & V_LKA) && d.lka_state != LKA_OFF;
-    bool aca_on = acc_on && d.aca_lane == 2;          /* удержание в полосе в составе ACC */
-    bool lines  = lka_on || aca_on;
+       
+      линии:
+         MLB-Evo — цвет каждой полосы по своему LDW_Lernmodus_* (2 зелёная, 1 жёлтая,
+         3/предупреждение — мигающая оранжевая); ACA_Querfuehrung от ACC даёт зелёные
+         полосы и без LKA;
+         MQB (активное ведение по полосе) — обе полосы зелёные при LDW_02.LED_gruen = 1,
+         иначе скрыты. Side Assist работает одинаково на всех платформах. */
+    #if HUD_PLATFORM == HUD_PLATFORM_MQB
+        /* MQB (активное ведение по полосе): авторитетный признак — LDW_02.LED_gruen (бит 62).
+        LED_gruen = 1 → обе линии Lane Assist зелёные; иначе линий нет.
+        Side Assist (см. цикл ниже) сохраняет свой приоритет цвета и может показать
+        красную полоску даже без LED_gruen — эта логика одинакова для всех платформ. */
+        bool lines  = (d.valid & V_LKA) && d.lka_green;
+    #else
+        bool lka_on = (d.valid & V_LKA) && d.lka_state != LKA_OFF;
+        bool aca_on = acc_on && d.aca_lane == 2;          /* удержание в полосе в составе ACC */
+        bool lines  = lka_on || aca_on;
+    #endif
+    
     /* машина впереди (ACC_Relevantes_Objekt_02):
        1 — цель ACC: только при включённом ACC, цветом ACC;
        2 — предупреждение (опасная дистанция): ВСЕГДА, даже при выключенном ACC, красным */
     bool obj_warn = (d.valid & V_ACC) && d.acc_object == 2;
-    bool obj = obj_warn || (acc_on && d.acc_object == 1);
+
+ #if HUD_PLATFORM == HUD_PLATFORM_MQB
+    /* MQB: помимо ACC_Relevantes_Objekt_02, машина впереди определяется по ACC_Abstandsindex:
+       0 и 1022 = «серая дорога» (Sonderanzeige_graue_Fahrbahn) — цели нет,
+       1..1021 и 1023 (зел./красн. зона) — цель есть.
+       В логах Relevantes_Objekt часто = 0 даже когда впереди есть машина, а Abstandsindex
+       при этом > 0 (пример: Abstandsindex = 972 при Relevantes_Objekt = 0). */
+    bool abstand_lead = (d.valid & V_ACC) && d.acc_abstand != 0 && d.acc_abstand != 1022;
+    bool obj          = obj_warn || (acc_on && (d.acc_object == 1 || abstand_lead));
+#else
+    bool obj          = obj_warn || (acc_on && d.acc_object == 1);
+#endif
+
     vis(as_front, obj);
     if (obj) set_img_color(as_front, obj_warn ? C_OBJ_WARN : acc_col);
     /* радар (волны): пока ACC регулирует (status 3, машинка зелёная) — всегда, даже без машины впереди;
@@ -896,17 +941,28 @@ static void hud_update_cb(lv_timer_t *t)
 
     for (int side = 0; side < 2; side++) {
         lv_obj_t *ln = side ? as_line_r : as_line_l;
-        uint8_t  lv  = side ? d.lka_line_r : d.lka_line_l;
-        bool     wr  = d.lka_warn & (side ? 2 : 1);
         uint8_t  bit = side ? 2 : 1;
-        uint32_t col;
-        if (swa_w & bit)                          col = ((now % 400) < 200) ? C_SWA : 0x000000;
-        else if (swa_i & bit)                     col = C_SWA;
-        else if (!lka_on)                         col = C_GREEN;      /* только ACA */
-        else if (wr || lv == 3)                   col = ((now % 500) < 250) ? C_ORANGE : 0x000000;
-        else if (lv == 2)                         col = C_GREEN;
-        else                                      col = C_YELLOW;
-        bool show = lines || ((swa_i | swa_w) & bit);
+        uint32_t col = 0;
+        bool     show = false;
+
+        /* Side Assist — одинаково на всех платформах, имеет приоритет цвета */
+        if (swa_w & bit)      { col = ((now % 400) < 200) ? C_SWA : 0x000000; show = true; }
+        else if (swa_i & bit) { col = C_SWA; show = true; }
+#if HUD_PLATFORM == HUD_PLATFORM_MQB
+        /* MQB: линии Lane Assist — только по LED_gruen, всегда зелёные.
+           Жёлтый индикатор, Lernmodus и предупреждение отдельных цветов не дают. */
+        else if (lines)       { col = C_GREEN; show = true; }
+#else
+        else {
+            uint8_t lv = side ? d.lka_line_r : d.lka_line_l;
+            bool    wr = d.lka_warn & bit;
+            if (!lka_on)            col = C_GREEN;      /* только ACA */
+            else if (wr || lv == 3) col = ((now % 500) < 250) ? C_ORANGE : 0x000000;
+            else if (lv == 2)       col = C_GREEN;
+            else                    col = C_YELLOW;
+            show = lines;
+        }
+#endif
         if (show) set_img_color(ln, col);
         vis(ln, show);
     }
