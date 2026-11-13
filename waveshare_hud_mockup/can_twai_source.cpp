@@ -69,7 +69,7 @@ static void twai_task(void *)
     while (!twai_up()) vTaskDelay(pdMS_TO_TICKS(2000));
 
     uint32_t last_rx = 0, last_chk = 0, last_stat = millis();
-    uint32_t frames = 0, gap_max = 0;
+    uint32_t frames = 0, gap_max = 0, backlog_max = 0;
     bool link = false;
 
     for (;;) {
@@ -87,6 +87,8 @@ static void twai_task(void *)
             last_chk = now;
             /* пауза между кадрами скорости (0x30B): длиннее 200 мс — сразу в журнал вместе со счётчиками драйвера,
                чтобы отличить потерю кадров на шине/в очереди от проблем отрисовки */
+            twai_status_info_t bk = {};
+            if (twai_get_status_info(&bk) == ESP_OK && bk.msgs_to_rx > backlog_max) backlog_max = bk.msgs_to_rx;   /* глубина очереди: растёт, если разбор не успевает */
             uint32_t g = hud_data_take_speed_gap_max();
             if (g > gap_max) gap_max = g;
             if (g >= 200 && HUD_LOG_TWAI) {
@@ -118,13 +120,13 @@ static void twai_task(void *)
             if (HUD_LOG_STAT) {
                 twai_status_info_t st = {};
                 twai_get_status_info(&st);
-                arduino_printf("[TWAI] кадров %lu за 10 с, потеряно (очередь) %lu, переполнение %lu, ошибок шины %lu, макс. пауза 0x30B %lu мс\n",
+                arduino_printf("[TWAI] кадров %lu за 10 с, потеряно (очередь) %lu, переполнение %lu, ошибок шины %lu, макс. пауза 0x30B %lu мс, макс. очередь %lu из 512\n",
                               (unsigned long)frames, (unsigned long)st.rx_missed_count,
                               (unsigned long)st.rx_overrun_count, (unsigned long)st.bus_error_count,
-                              (unsigned long)gap_max);
+                              (unsigned long)gap_max, (unsigned long)backlog_max);
             }
             if (HUD_LOG_CAN) hud_data_debug_print(serial_line);
-            frames = 0; gap_max = 0;
+            frames = 0; gap_max = 0; backlog_max = 0;
         }
     }
 }

@@ -16,6 +16,7 @@
 #include "src/tca9554/esp_io_expander_tca9554.h"
 #include "i2c_bsp.h"
 #include "hud_config.h"
+#include "hud_log.h"
 
 #define LCD_BIT_PER_PIXEL (16)
 
@@ -52,8 +53,14 @@ static void example_increase_lvgl_tick(void *arg)
   lv_tick_inc(EXAMPLE_LVGL_TICK_PERIOD_MS);
 }
 
+#if HUD_PERF_LOG
+static volatile uint32_t g_flush_cnt;
+#endif
 static void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
+#if HUD_PERF_LOG
+  g_flush_cnt++;
+#endif
 #if (Rotated == USER_DISP_ROT_90)
   uint32_t index = 0;
   uint16_t *data_ptr = (uint16_t *)color_map;
@@ -211,6 +218,25 @@ static void example_lvgl_unlock(void)
   xSemaphoreGive(lvgl_mux);
 }
 
+#if HUD_PERF_LOG
+/* Раз в HUD_PERF_LOG_MS: сколько раз LVGL реально перерисовал экран, среднее и максимальное время lv_timer_handler()
+   с отрисовкой (рендер + поворот + DMA — flush блокирующий), и сколько это в кадрах в секунду. Если анимация стрелки
+   упирается в экран, handler avg ~ 1000/fps и CPU ядра 0 занят почти целиком. */
+static void perf_after_handler(uint32_t flushes0, uint32_t us)
+{
+  static uint32_t n, sum, mx;
+  static int64_t t_rep;
+  if (g_flush_cnt != flushes0) { ++n; sum += us; if (us > mx) mx = us; }
+  const int64_t now = esp_timer_get_time();
+  if (!t_rep) t_rep = now;
+  if (now - t_rep < (int64_t)HUD_PERF_LOG_MS * 1000) return;
+  const float sec = (now - t_rep) / 1e6f;
+  arduino_printf("[perf] перерисовок %u (%.1f/с), handler в среднем %.1f мс, макс. %.1f мс, занято %.0f %%\n",
+                 (unsigned)n, n / sec, n ? sum / 1000.0f / n : 0.f, mx / 1000.0f, sum / 10000.0f / sec);
+  n = sum = mx = 0; t_rep = now;
+}
+#endif
+
 void example_lvgl_port_task(void *arg)
 {
   uint32_t task_delay_ms = EXAMPLE_LVGL_TASK_MAX_DELAY_MS;
@@ -218,7 +244,14 @@ void example_lvgl_port_task(void *arg)
   {
     if (example_lvgl_lock(-1)) 
     {
+#if HUD_PERF_LOG
+      const uint32_t flushes0 = g_flush_cnt;
+      const int64_t th0 = esp_timer_get_time();
+#endif
       task_delay_ms = lv_timer_handler();
+#if HUD_PERF_LOG
+      perf_after_handler(flushes0, (uint32_t)(esp_timer_get_time() - th0));
+#endif
       //Release the mutex
       example_lvgl_unlock();
     }
