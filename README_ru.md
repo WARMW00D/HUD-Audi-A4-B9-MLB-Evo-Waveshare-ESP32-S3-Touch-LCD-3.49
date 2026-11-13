@@ -699,7 +699,10 @@ python tools/gen_min_images.py
 следующему манёвру, скорость ×0.25…×32, меню настроек HUD (мышь заменяет тачскрин), загрузка `cams.bin` и анимированных стрелок (`arrows.bin`, берётся из `arrows/` сам), переключение платформы (MLB-Evo / MQB),
 **полный / минимальный режим** (меню «Режим» или клавиша `D`), скриншоты, окно журнала прошивки. Готового exe в репозитории нет: соберите его
 `tools/hud_sim_win/build_win.bat` (нужны git и [zig](https://ziglang.org/download/) или MinGW-w64 в `PATH`; LVGL скачивается при первом запуске).
-Подробности, управление и отличия от платы — в [tools/hud_sim_win/README.md](tools/hud_sim_win/README.md).
+![Окно HUD Sim: экран HUD, шкала времени, логи поездки и журнал прошивки](docs/screens/hud_sim_window.png)
+*Окно симулятора: экран HUD (полный режим с анимированной стрелкой), шкала времени с метками манёвров, список логов поездки и журнал прошивки*
+
+Подробности, управление и отличия от платы — в [tools/hud_sim_win/README_ru.md](tools/hud_sim_win/README_ru.md).
 `build_headless.sh` собирает то же ядро без окна (Linux / WSL): `mode=1 ./hud_shot log.txt 215 out.bmp` сохраняет кадр минимального режима.
 
 ### Serial HUD

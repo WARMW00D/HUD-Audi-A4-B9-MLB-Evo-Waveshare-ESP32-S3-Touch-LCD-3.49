@@ -24,6 +24,7 @@
 #include <string.h>
 #include <wchar.h>
 #include "sim_core.h"
+#include "sim_map.h"
 #include "hud_config.h"
 #include "hud_data.h"
 
@@ -36,17 +37,23 @@ int WINAPI GdipDisposeImage(void *image);
 #define GP_PIXFMT_32RGB 0x00022009
 static const CLSID CLSID_PNG_ENC = { 0x557CF406, 0x1A04, 0x11D3, { 0x9A, 0x73, 0x00, 0x00, 0xF8, 0x1E, 0xF3, 0x2E } };
 
-enum { IDC_OPENF = 100, IDC_OPEND, IDC_PREV, IDC_PLAY, IDC_NEXT, IDC_B10, IDC_F10, IDC_PMAN, IDC_NMAN,
-       IDC_SPEED, IDC_MENU, IDC_SHOT, IDC_SOUND, IDC_LIST, IDC_LOG,
-       IDM_CAMS = 200, IDM_EXIT, IDM_ZOOM1, IDM_ZOOM2, IDM_ZOOM3, IDM_ZOOM4, IDM_CLEARLOG, IDM_PLAT_MLB, IDM_PLAT_MQB, IDM_MODE_FULL, IDM_MODE_MIN, IDM_ARROWS };
+#define SIM_VERSION "1.0.0"
+#define SIM_VERSION_W L"1.0.0"                       /* версия эмулятора (не путать с версией прошивки) */
+static int g_lang;                                  /* 0 — русский, 1 — English (hud_sim.ini [sim] lang) */
+#define T(ru, en) (g_lang ? (en) : (ru))
 
-#define NBTN 11
-static const struct { int id; const wchar_t *text; int w; } k_btn[NBTN] = {
-    { IDC_OPENF, L"Файл…", 62 },      { IDC_OPEND, L"Папка…", 66 },
-    { IDC_PREV,  L"« файл", 62 },     { IDC_PLAY,  L"Пуск", 70 },       { IDC_NEXT, L"файл »", 62 },
-    { IDC_B10,   L"−10 с", 54 },      { IDC_F10,   L"+10 с", 54 },
-    { IDC_PMAN,  L"« манёвр", 78 },   { IDC_NMAN,  L"манёвр »", 78 },
-    { IDC_MENU,  L"Меню HUD", 82 },   { IDC_SHOT,  L"Скриншот", 80 },
+enum { IDC_OPENF = 100, IDC_OPEND, IDC_PREV, IDC_PLAY, IDC_NEXT, IDC_B10, IDC_F10, IDC_PMAN, IDC_NMAN,
+       IDC_SPEED, IDC_MENU, IDC_MAP, IDC_SHOT, IDC_SOUND, IDC_LIST, IDC_LOG,
+       IDM_CAMS = 200, IDM_EXIT, IDM_ZOOM1, IDM_ZOOM2, IDM_ZOOM3, IDM_ZOOM4, IDM_CLEARLOG, IDM_PLAT_MLB, IDM_PLAT_MQB, IDM_MODE_FULL, IDM_MODE_MIN, IDM_ARROWS, IDM_MAP, IDM_LANG_RU, IDM_LANG_EN };
+
+#define NBTN 12
+static const struct { int id; const wchar_t *ru, *en; int w; } k_btn[NBTN] = {
+    { IDC_OPENF, L"Файл…", L"File…", 62 },        { IDC_OPEND, L"Папка…", L"Folder…", 66 },
+    { IDC_PREV,  L"« файл", L"« file", 62 },      { IDC_PLAY,  L"Пуск", L"Play", 70 },     { IDC_NEXT, L"файл »", L"file »", 62 },
+    { IDC_B10,   L"−10 с", L"−10 s", 54 },        { IDC_F10,   L"+10 с", L"+10 s", 54 },
+    { IDC_PMAN,  L"« манёвр", L"« turn", 78 },    { IDC_NMAN,  L"манёвр »", L"turn »", 78 },
+    { IDC_MENU,  L"Меню HUD", L"HUD menu", 82 },  { IDC_MAP,   L"Карта", L"Map", 62 },
+    { IDC_SHOT,  L"Скриншот", L"Screenshot", 80 },
 };
 static const double k_speeds[] = { 0.25, 0.5, 1, 2, 4, 8, 16, 32 };
 #define NSPEED ((int)(sizeof k_speeds / sizeof k_speeds[0]))
@@ -197,7 +204,7 @@ static void list_dir(const wchar_t *dir)
 }
 
 static void update_title(void);
-static void update_play_button(void) { SetWindowTextW(g_btn[3], sim_playing() ? L"Пауза" : L"Пуск"); }
+static void update_play_button(void) { SetWindowTextW(g_btn[3], sim_playing() ? T(L"Пауза", L"Pause") : T(L"Пуск", L"Play")); }
 
 static bool load_index(int i, bool cont)
 {
@@ -211,7 +218,7 @@ static bool load_index(int i, bool cont)
     free(txt);
     SetCursor(old);
     if (!ok) {
-        logf_w(L"[sim] не удалось прочитать лог (нет кадров формата «мс S|X ID DLC байты»): %ls\n", path);
+        logf_w(T(L"[sim] не удалось прочитать лог (нет кадров формата «мс S|X ID DLC байты»): %ls\n", L"[sim] cannot read the log (no frames in the 'ms S|X ID DLC bytes' format): %ls\n"), path);
         return false;
     }
     g_cur = i;
@@ -219,8 +226,8 @@ static bool load_index(int i, bool cont)
     update_title();
     WritePrivateProfileStringW(L"sim", L"last", path, g_ini);
     uint32_t nm, ns; sim_maneuvers(&nm); sim_nav_spans(&ns);
-    logf_w(L"[sim] %ls: кадров %u, %u:%02u, смен манёвра %u%ls\n", g_files[i], sim_frames_total(),
-           sim_dur_ms() / 60000, sim_dur_ms() / 1000 % 60, nm, ns ? L"" : L", ведения по маршруту нет");
+    logf_w(T(L"[sim] %ls: кадров %u, %u:%02u, смен манёвра %u%ls\n", L"[sim] %ls: %u frames, %u:%02u, %u maneuver changes%ls\n"), g_files[i], sim_frames_total(),
+           sim_dur_ms() / 60000, sim_dur_ms() / 1000 % 60, nm, ns ? L"" : T(L", ведения по маршруту нет", L", no route guidance"));
     InvalidateRect(g_tl, NULL, FALSE);
     return true;
 }
@@ -247,7 +254,7 @@ static void open_path(const wchar_t *path, bool autoplay)
             idx = g_nfiles++;
         }
     }
-    if (!g_nfiles) { logf_w(L"[sim] в папке нет логов (*.txt, *.log): %ls\n", path); return; }
+    if (!g_nfiles) { logf_w(T(L"[sim] в папке нет логов (*.txt, *.log): %ls\n", L"[sim] no logs (*.txt, *.log) in the folder: %ls\n"), path); return; }
     if (load_index(idx, false)) sim_play(autoplay);
     update_play_button();
 }
@@ -272,7 +279,7 @@ static int CALLBACK browse_cb(HWND h, UINT msg, LPARAM lp, LPARAM data)
 static bool pick_folder(wchar_t *out)
 {
     BROWSEINFOW b; memset(&b, 0, sizeof b);
-    b.hwndOwner = g_wnd; b.lpszTitle = L"Папка с логами сниффера (can_log_NNNN.txt)";
+    b.hwndOwner = g_wnd; b.lpszTitle = T(L"Папка с логами сниффера (can_log_NNNN.txt)", L"Folder with sniffer logs (can_log_NNNN.txt)");
     b.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE; b.lpfn = browse_cb; b.lParam = (LPARAM)g_dir;
     LPITEMIDLIST p = SHBrowseForFolderW(&b);
     if (!p) return false;
@@ -285,9 +292,9 @@ static bool pick_folder(wchar_t *out)
 static bool load_cams(const wchar_t *path, bool quiet)
 {
     size_t n; void *b = read_file(path, &n);
-    if (!b) { if (!quiet) logf_w(L"[sim] не читается: %ls\n", path); return false; }
-    if (!sim_set_cams(b, n)) { if (!quiet) logf_w(L"[sim] cams.bin повреждён или другой версии: %ls\n", path); return false; }
-    logf_w(L"[sim] база камер загружена: %ls\n", path);
+    if (!b) { if (!quiet) logf_w(T(L"[sim] не читается: %ls\n", L"[sim] cannot read: %ls\n"), path); return false; }
+    if (!sim_set_cams(b, n)) { if (!quiet) logf_w(T(L"[sim] cams.bin повреждён или другой версии: %ls\n", L"[sim] cams.bin is corrupt or of another version: %ls\n"), path); return false; }
+    logf_w(T(L"[sim] база камер загружена: %ls\n", L"[sim] camera database loaded: %ls\n"), path);
     return true;
 }
 
@@ -296,9 +303,9 @@ static bool load_cams(const wchar_t *path, bool quiet)
 static bool load_arrows(const wchar_t *path, bool quiet)
 {
     size_t n; void *b = read_file(path, &n);
-    if (!b) { if (!quiet) logf_w(L"[sim] не читается: %ls\n", path); return false; }
-    if (!sim_set_arrows(b, n)) { if (!quiet) logf_w(L"[sim] arrows.bin повреждён или другой версии: %ls\n", path); return false; }
-    logf_w(L"[sim] анимация стрелок загружена: %ls\n", path);
+    if (!b) { if (!quiet) logf_w(T(L"[sim] не читается: %ls\n", L"[sim] cannot read: %ls\n"), path); return false; }
+    if (!sim_set_arrows(b, n)) { if (!quiet) logf_w(T(L"[sim] arrows.bin повреждён или другой версии: %ls\n", L"[sim] arrows.bin is corrupt or of another version: %ls\n"), path); return false; }
+    logf_w(T(L"[sim] анимация стрелок загружена: %ls\n", L"[sim] arrow animation loaded: %ls\n"), path);
     return true;
 }
 
@@ -334,8 +341,8 @@ static void screenshot(void)
     void *bmp = NULL; int st = GdipCreateBitmapFromScan0(w, h, w * 4, GP_PIXFMT_32RGB, (BYTE *)px, &bmp);
     if (!st && bmp) { st = GdipSaveImageToFile(bmp, path, &CLSID_PNG_ENC, NULL); GdipDisposeImage(bmp); }
     free(px);
-    if (st) logf_w(L"[sim] скриншот в буфере обмена; PNG сохранить не удалось (GDI+ %d): %ls\n", st, path);
-    else    logf_w(L"[sim] скриншот: %ls (и в буфере обмена)\n", path);
+    if (st) logf_w(T(L"[sim] скриншот в буфере обмена; PNG сохранить не удалось (GDI+ %d): %ls\n", L"[sim] screenshot is on the clipboard; could not save the PNG (GDI+ %d): %ls\n"), st, path);
+    else    logf_w(T(L"[sim] скриншот: %ls (и в буфере обмена)\n", L"[sim] screenshot: %ls (and on the clipboard)\n"), path);
 }
 
 /* ============================ управление ============================ */
@@ -379,8 +386,8 @@ static const wchar_t *plat_name(void) { return sim_platform() == SIM_PLATFORM_MQ
 static void update_title(void)
 {
     wchar_t t[MAX_PATH + 96];
-    if (g_cur >= 0) swprintf(t, MAX_PATH + 96, L"HUD Sim (прошивка %hs, %ls) — %ls", HUD_FW_VERSION, plat_name(), g_files[g_cur]);
-    else            swprintf(t, MAX_PATH + 96, L"HUD Sim (прошивка %hs, %ls)", HUD_FW_VERSION, plat_name());
+    if (g_cur >= 0) swprintf(t, MAX_PATH + 96, T(L"HUD Sim " SIM_VERSION_W L" (прошивка %hs, %ls) — %ls", L"HUD Sim " SIM_VERSION_W L" (firmware %hs, %ls) — %ls"), HUD_FW_VERSION, plat_name(), g_files[g_cur]);
+    else            swprintf(t, MAX_PATH + 96, T(L"HUD Sim " SIM_VERSION_W L" (прошивка %hs, %ls)", L"HUD Sim " SIM_VERSION_W L" (firmware %hs, %ls)"), HUD_FW_VERSION, plat_name());
     SetWindowTextW(g_wnd, t);
 }
 
@@ -394,7 +401,7 @@ static void set_mode(int m)
 {
     sim_set_mode(m);
     sync_mode_menu();
-    logf_w(L"[sim] режим экрана: %ls\n", sim_mode() == HUD_MODE_MIN ? L"минимальный" : L"полный");
+    logf_w(T(L"[sim] режим экрана: %ls\n", L"[sim] screen mode: %ls\n"), sim_mode() == HUD_MODE_MIN ? T(L"минимальный", L"minimal") : T(L"полный", L"full"));
 }
 
 static void set_platform(int p, bool announce)
@@ -403,7 +410,7 @@ static void set_platform(int p, bool announce)
     cfg_set_int(L"sim", L"platform", sim_platform());
     CheckMenuRadioItem(GetMenu(g_wnd), IDM_PLAT_MLB, IDM_PLAT_MQB, sim_platform() == SIM_PLATFORM_MQB ? IDM_PLAT_MQB : IDM_PLAT_MLB, MF_BYCOMMAND);
     update_title();
-    if (announce) logf_w(L"[sim] платформа декодера: %ls\n", plat_name());
+    if (announce) logf_w(T(L"[sim] платформа декодера: %ls\n", L"[sim] decoder platform: %ls\n"), plat_name());
     if (g_tl) InvalidateRect(g_tl, NULL, FALSE);
 }
 
@@ -450,7 +457,7 @@ static void layout(void)
     InvalidateRect(g_wnd, NULL, TRUE);
 }
 
-static int min_client_w(void) { int a = SIM_W * g_zoom + 2 * S(10), b = S(1010); return a > b ? a : b; }
+static int min_client_w(void) { int a = SIM_W * g_zoom + 2 * S(10), b = S(1090); return a > b ? a : b; }
 
 static void fit_window(void)
 {
@@ -529,43 +536,51 @@ static void set_text(HWND h, const wchar_t *s)
 
 static const wchar_t *unit_name(uint8_t u)
 {
-    static const wchar_t *n[] = { L"м", L"км", L"ярд", L"фут", L"миль", L"¼ мили" };
-    return u < 6 ? n[u] : L"?";
+    static const wchar_t *ru[] = { L"м", L"км", L"ярд", L"фут", L"миль", L"¼ мили" };
+    static const wchar_t *en[] = { L"m", L"km", L"yd", L"ft", L"mi", L"¼ mi" };
+    return u < 6 ? (g_lang ? en : ru)[u] : L"?";
 }
 
 static void update_status(void)
 {
     wchar_t a[600], b[600]; int o;
     HudData d; hud_data_snapshot(&d);
+    {   /* «нет фикса» кадр 0x486 приходит с маркерными значениями (широта 134.2…) — они вне диапазона и отсекаются; сам NP_Fix в логах бывает меньше 3 при годных координатах, поэтому по нему не фильтруем, держим последнюю годную позицию */
+        static double s_lat, s_lon; static int s_have;
+        double la = d.gps_lat_e6 / 1e6, lo = d.gps_lon_e6 / 1e6;
+        if ((d.valid & V_GPS) && la > -90 && la < 90 && lo > -180 && lo < 180 && (d.gps_lat_e6 || d.gps_lon_e6)) { s_lat = la; s_lon = lo; s_have = 1; }
+        map_update(sim_loaded(), sim_loaded() && s_have, s_lat, s_lon, ((d.valid & V_HDG) && d.gps_hdg_x10 != 0xFFFF) ? d.gps_hdg_x10 : -1,
+                   (d.valid & V_SPEED) ? d.speed_kmh : 0, (d.valid & V_GPS) ? d.gps_sat : 0, (d.valid & V_GPS) ? d.gps_fix : 0, sim_pos_ms()); }
     if (!sim_loaded()) {
-        set_text(g_st1, L"Лог не открыт. Откройте файл can_log_NNNN.txt или папку поездки (кнопки, меню «Файл» или перетащите в окно).");
-        set_text(g_st2, L"Мышь на экране HUD — касание; двойной щелчок — меню настроек HUD.");
+        set_text(g_st1, T(L"Лог не открыт. Откройте файл can_log_NNNN.txt или папку поездки (кнопки, меню «Файл» или перетащите в окно).", L"No log open. Open a can_log_NNNN.txt file or a trip folder (buttons, the File menu, or drop it onto the window)."));
+        set_text(g_st2, T(L"Мышь на экране HUD — касание; двойной щелчок — меню настроек HUD.", L"The mouse on the HUD screen is a touch; double-click opens the HUD settings menu."));
         return;
     }
     uint32_t p = sim_pos_ms(), du = sim_dur_ms();
-    o = swprintf(a, 600, L"%ls   [%ls]   %02u:%04.1f / %02u:%02u   ×%g   кадр %u / %u", g_cur >= 0 ? g_files[g_cur] : L"", plat_name(), p / 60000, (p % 60000) / 1000.0,
+    o = swprintf(a, 600, T(L"%ls   [%ls]   %02u:%04.1f / %02u:%02u   ×%g   кадр %u / %u", L"%ls   [%ls]   %02u:%04.1f / %02u:%02u   ×%g   frame %u / %u"), g_cur >= 0 ? g_files[g_cur] : L"", plat_name(), p / 60000, (p % 60000) / 1000.0,
                  du / 60000, du / 1000 % 60, sim_speed(), sim_frames_pos(), sim_frames_total());
     HudClock c;
-    if (hud_clock_now(&c)) o += swprintf(a + o, 600 - o, L"   часы машины %04u-%02u-%02u %02u:%02u:%02u", c.year, c.mon, c.day, c.hour, c.min, c.sec);
-    if (sim_backlight >= 0) o += swprintf(a + o, 600 - o, L"   подсветка %d/255", sim_backlight);
+    if (hud_clock_now(&c)) o += swprintf(a + o, 600 - o, T(L"   часы машины %04u-%02u-%02u %02u:%02u:%02u", L"   car clock %04u-%02u-%02u %02u:%02u:%02u"), c.year, c.mon, c.day, c.hour, c.min, c.sec);
+    if (sim_backlight >= 0) o += swprintf(a + o, 600 - o, T(L"   подсветка %d/255", L"   backlight %d/255"), sim_backlight);
     set_text(g_st1, a);
 
     o = 0;
-    if (d.valid & V_SPEED) o += swprintf(b + o, 600 - o, L"%u км/ч", d.speed_kmh); else o += swprintf(b + o, 600 - o, L"скорости нет");
+    if (d.valid & V_SPEED) o += swprintf(b + o, 600 - o, T(L"%u км/ч", L"%u km/h"), d.speed_kmh); else o += swprintf(b + o, 600 - o, T(L"скорости нет", L"no speed"));
     if (d.valid & V_MAN) {
-        o += swprintf(b + o, 600 - o, L"   навигация: %ls, манёвр 0x%02X / 0x%02X (%u°)", d.rg_active == 1 ? L"ведёт" : d.rg_active == 2 ? L"пауза" : L"выкл",
+        o += swprintf(b + o, 600 - o, T(L"   навигация: %ls, манёвр 0x%02X / 0x%02X (%u°)", L"   navigation: %ls, maneuver 0x%02X / 0x%02X (%u°)"),
+                      d.rg_active == 1 ? T(L"ведёт", L"guiding") : d.rg_active == 2 ? T(L"пауза", L"paused") : T(L"выкл", L"off"),
                       d.man_main, d.man_dir, d.man_dir * 360u / 256u);
-        if (d.man2_main) o += swprintf(b + o, 600 - o, L", затем 0x%02X / 0x%02X", d.man2_main, d.man2_dir);
-    } else o += swprintf(b + o, 600 - o, L"   навигация: нет данных");
+        if (d.man2_main) o += swprintf(b + o, 600 - o, T(L", затем 0x%02X / 0x%02X", L", then 0x%02X / 0x%02X"), d.man2_main, d.man2_dir);
+    } else o += swprintf(b + o, 600 - o, T(L"   навигация: нет данных", L"   navigation: no data"));
     if (d.valid & V_MDIST) {
-        o += swprintf(b + o, 600 - o, L"   через %g %ls", d.man_dist_x10 / 10.0, unit_name(d.man_unit));
-        if (d.bargraph != 0xFF) o += swprintf(b + o, 600 - o, L" (бар %u%%)", d.bargraph);
+        o += swprintf(b + o, 600 - o, T(L"   через %g %ls", L"   in %g %ls"), d.man_dist_x10 / 10.0, unit_name(d.man_unit));
+        if (d.bargraph != 0xFF) o += swprintf(b + o, 600 - o, T(L" (бар %u%%)", L" (bar %u%%)"), d.bargraph);
     }
-    if (d.valid & V_DEST) o += swprintf(b + o, 600 - o, L"   до цели %g %ls", d.dest_dist_x10 / 10.0, unit_name(d.dest_unit));
-    if (d.valid & V_TTE)  o += swprintf(b + o, 600 - o, d.tte_type ? L"   прибытие %02u:%02u" : L"   в пути %u:%02u", d.tte_h, d.tte_min);
+    if (d.valid & V_DEST) o += swprintf(b + o, 600 - o, T(L"   до цели %g %ls", L"   to destination %g %ls"), d.dest_dist_x10 / 10.0, unit_name(d.dest_unit));
+    if (d.valid & V_TTE)  o += swprintf(b + o, 600 - o, d.tte_type ? T(L"   прибытие %02u:%02u", L"   arrival %02u:%02u") : T(L"   в пути %u:%02u", L"   en route %u:%02u"), d.tte_h, d.tte_min);
     if (d.valid & V_GPS) {
         o += swprintf(b + o, 600 - o, L"   GNSS %.5f, %.5f", d.gps_lat_e6 / 1e6, d.gps_lon_e6 / 1e6);
-        if ((d.valid & V_HDG) && d.gps_hdg_x10 != 0xFFFF) o += swprintf(b + o, 600 - o, L" курс %u°", d.gps_hdg_x10 / 10);
+        if ((d.valid & V_HDG) && d.gps_hdg_x10 != 0xFFFF) o += swprintf(b + o, 600 - o, T(L" курс %u°", L" heading %u°"), d.gps_hdg_x10 / 10);
     }
     set_text(g_st2, b);
 
@@ -577,10 +592,26 @@ static void update_status(void)
         if (d.valid & V_MAN) {
             wchar_t hx[3 * 32 + 1] = L""; int k = 0;
             for (int i = 0; i < d.man_raw_len && i < 32; i++) k += swprintf(hx + k, 4, L"%02X ", d.man_raw[i]);
-            logf_w(L"[sim] навигация %u, манёвр main 0x%02X dir 0x%02X (%u°) z 0x%02X, боковых %u, затем 0x%02X/0x%02X; 0x17[%u]: %ls\n",
+            logf_w(T(L"[sim] навигация %u, манёвр main 0x%02X dir 0x%02X (%u°) z 0x%02X, боковых %u, затем 0x%02X/0x%02X; 0x17[%u]: %ls\n",
+                     L"[sim] navigation %u, maneuver main 0x%02X dir 0x%02X (%u°) z 0x%02X, side %u, then 0x%02X/0x%02X; 0x17[%u]: %ls\n"),
                    d.rg_active, d.man_main, d.man_dir, d.man_dir * 360u / 256u, d.man_z, d.man_side_n, d.man2_main, d.man2_dir, d.man_raw_len, hx);
         }
     }
+}
+
+/* ---- окно карты: сервер на 127.0.0.1 + отдельное окно браузера (Edge/Chrome в режиме приложения) ---- */
+static void open_map(void)
+{
+    int port = map_server_port();
+    if (!port) { logf_w(T(L"[карта] не удалось запустить локальный сервер\n", L"[map] could not start the local server\n")); return; }
+    wchar_t url[96]; swprintf(url, 96, L"http://127.0.0.1:%d/?lang=%ls", port, g_lang ? L"en" : L"ru");
+    wchar_t arg[160]; swprintf(arg, 160, L"--app=%ls --window-size=1000,720", url);
+    static const wchar_t *k_br[] = { L"msedge.exe", L"chrome.exe" };
+    for (int i = 0; i < 2; i++) {
+        HINSTANCE r = ShellExecuteW(NULL, L"open", k_br[i], arg, NULL, SW_SHOWNORMAL);
+        if ((INT_PTR)r > 32) return;
+    }
+    ShellExecuteW(NULL, L"open", url, NULL, NULL, SW_SHOWNORMAL);      /* браузер по умолчанию, во вкладке */
 }
 
 /* ============================ такт ============================ */
@@ -599,7 +630,7 @@ static void tick(void)
         acc -= dt;
         sim_step(dt);
         if (sim_take_eof()) {                      /* файл кончился — следующий файл той же папки */
-            if (!(g_cur + 1 < g_nfiles && load_index(g_cur + 1, true))) { sim_play(false); logf_w(L"[sim] конец лога\n"); }
+            if (!(g_cur + 1 < g_nfiles && load_index(g_cur + 1, true))) { sim_play(false); logf_w(T(L"[sim] конец лога\n", L"[sim] end of log\n")); }
             update_play_button();
         }
         if (sim_fb_dirty) { sim_fb_dirty = false; InvalidateRect(g_wnd, &g_hud, FALSE); }
@@ -607,6 +638,67 @@ static void tick(void)
         if (t - last_ui >= 100) { last_ui = t; update_status(); if (sim_playing()) InvalidateRect(g_tl, NULL, FALSE); }
     }
     g_in_tick = false;
+}
+
+/* ============================ меню и язык ============================ */
+static HMENU build_menu(void)
+{
+    HMENU mb = CreateMenu(), mf = CreatePopupMenu(), mv = CreatePopupMenu(), mp = CreatePopupMenu(), mm = CreatePopupMenu(), ml = CreatePopupMenu();
+    AppendMenuW(mp, MF_STRING, IDM_PLAT_MLB, T(L"MLB-Evo (Audi A4 B9, I-CAN)", L"MLB-Evo (Audi A4 B9, I-CAN)"));
+    AppendMenuW(mp, MF_STRING, IDM_PLAT_MQB, T(L"MQB (Comfort CAN)", L"MQB (Comfort CAN)"));
+    AppendMenuW(mm, MF_STRING, IDM_MODE_FULL, T(L"Полный", L"Full"));
+    AppendMenuW(mm, MF_STRING, IDM_MODE_MIN, T(L"Минимальный", L"Minimal"));
+    AppendMenuW(mm, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(mm, MF_STRING | MF_GRAYED, 0, T(L"Переключение: клавиша D или кнопка «Режим» в меню HUD (M)", L"Switch: the D key or the Mode button in the HUD menu (M)"));
+    AppendMenuW(mf, MF_STRING, IDC_OPENF, T(L"Открыть лог…\tCtrl+O", L"Open log…\tCtrl+O"));
+    AppendMenuW(mf, MF_STRING, IDC_OPEND, T(L"Открыть папку поездки…", L"Open trip folder…"));
+    AppendMenuW(mf, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(mf, MF_STRING, IDM_CAMS, T(L"Загрузить базу камер (cams.bin)…", L"Load camera database (cams.bin)…"));
+    AppendMenuW(mf, MF_STRING, IDM_ARROWS, T(L"Загрузить анимацию стрелок (arrows.bin)…", L"Load arrow animation (arrows.bin)…"));
+    AppendMenuW(mf, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(mf, MF_STRING, IDC_SHOT, T(L"Скриншот (PNG + буфер обмена)\tS", L"Screenshot (PNG + clipboard)\tS"));
+    AppendMenuW(mf, MF_STRING, IDM_CLEARLOG, T(L"Очистить журнал", L"Clear the log"));
+    AppendMenuW(mf, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(mf, MF_STRING, IDM_EXIT, T(L"Выход", L"Exit"));
+    AppendMenuW(mv, MF_STRING, IDM_ZOOM1, T(L"Экран HUD 1× (640×172)", L"HUD screen 1× (640×172)"));
+    AppendMenuW(mv, MF_STRING, IDM_ZOOM2, T(L"Экран HUD 2×", L"HUD screen 2×"));
+    AppendMenuW(mv, MF_STRING, IDM_ZOOM3, T(L"Экран HUD 3×", L"HUD screen 3×"));
+    AppendMenuW(mv, MF_STRING, IDM_ZOOM4, T(L"Экран HUD 4×", L"HUD screen 4×"));
+    AppendMenuW(mv, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(mv, MF_STRING, IDM_MAP, T(L"Карта (Яндекс / 2ГИС / OSM)…\tK", L"Map (Yandex / 2GIS / OSM)…\tK"));
+    AppendMenuW(ml, MF_STRING, IDM_LANG_RU, L"Русский");
+    AppendMenuW(ml, MF_STRING, IDM_LANG_EN, L"English");
+    AppendMenuW(mb, MF_POPUP, (UINT_PTR)mf, T(L"Файл", L"File"));
+    AppendMenuW(mb, MF_POPUP, (UINT_PTR)mp, T(L"Платформа", L"Platform"));
+    AppendMenuW(mb, MF_POPUP, (UINT_PTR)mm, T(L"Режим", L"Mode"));
+    AppendMenuW(mb, MF_POPUP, (UINT_PTR)mv, T(L"Вид", L"View"));
+    AppendMenuW(mb, MF_POPUP, (UINT_PTR)ml, L"Язык / Language");
+    return mb;
+}
+
+static void sync_menus(void)
+{
+    HMENU mb = GetMenu(g_wnd);
+    CheckMenuRadioItem(mb, IDM_ZOOM1, IDM_ZOOM4, IDM_ZOOM1 + g_zoom - 1, MF_BYCOMMAND);
+    CheckMenuRadioItem(mb, IDM_PLAT_MLB, IDM_PLAT_MQB, sim_platform() == SIM_PLATFORM_MQB ? IDM_PLAT_MQB : IDM_PLAT_MLB, MF_BYCOMMAND);
+    CheckMenuRadioItem(mb, IDM_LANG_RU, IDM_LANG_EN, g_lang ? IDM_LANG_EN : IDM_LANG_RU, MF_BYCOMMAND);
+    sync_mode_menu();
+}
+
+static void set_lang(int l)
+{
+    g_lang = l ? 1 : 0;
+    WritePrivateProfileStringW(L"sim", L"lang", g_lang ? L"en" : L"ru", g_ini);
+    HMENU old = GetMenu(g_wnd);
+    SetMenu(g_wnd, build_menu());
+    if (old) DestroyMenu(old);
+    for (int i = 0; i < NBTN; i++) SetWindowTextW(g_btn[i], T(k_btn[i].ru, k_btn[i].en));
+    SetWindowTextW(g_sound, T(L"Звук", L"Sound"));
+    update_play_button();
+    update_title();
+    sync_menus();
+    DrawMenuBar(g_wnd);
+    layout();
 }
 
 /* ============================ главное окно ============================ */
@@ -620,7 +712,7 @@ static void on_command(int id, int code)
 {
     wchar_t path[MAX_PATH];
     switch (id) {
-    case IDC_OPENF: if (pick_file(L"Логи сниффера (*.txt;*.log)\0*.txt;*.log\0Все файлы\0*.*\0", path)) open_path(path, true); break;
+    case IDC_OPENF: if (pick_file(T(L"Логи сниффера (*.txt;*.log)\0*.txt;*.log\0Все файлы\0*.*\0", L"Sniffer logs (*.txt;*.log)\0*.txt;*.log\0All files\0*.*\0"), path)) open_path(path, true); break;
     case IDC_OPEND: if (pick_folder(path)) open_path(path, true); break;
     case IDC_PREV:  switch_file(-1); break;
     case IDC_NEXT:  switch_file(+1); break;
@@ -643,12 +735,15 @@ static void on_command(int id, int code)
                     }
                     return;                        /* фокус остаётся в списке — стрелками можно листать файлы */
     case IDC_LOG:   return;
-    case IDM_CAMS:  if (pick_file(L"База камер (cams.bin)\0*.bin\0Все файлы\0*.*\0", path) && load_cams(path, false))
+    case IDM_CAMS:  if (pick_file(T(L"База камер (cams.bin)\0*.bin\0Все файлы\0*.*\0", L"Camera database (cams.bin)\0*.bin\0All files\0*.*\0"), path) && load_cams(path, false))
                         WritePrivateProfileStringW(L"sim", L"cams", path, g_ini);
                     break;
-    case IDM_ARROWS: if (pick_file(L"Анимированные стрелки (arrows.bin)\0*.bin\0Все файлы\0*.*\0", path) && load_arrows(path, false))
+    case IDM_ARROWS: if (pick_file(T(L"Анимированные стрелки (arrows.bin)\0*.bin\0Все файлы\0*.*\0", L"Animated arrows (arrows.bin)\0*.bin\0All files\0*.*\0"), path) && load_arrows(path, false))
                         WritePrivateProfileStringW(L"sim", L"arrows", path, g_ini);
                     break;
+    case IDC_MAP: case IDM_MAP: open_map(); return;
+    case IDM_LANG_RU: set_lang(0); break;
+    case IDM_LANG_EN: set_lang(1); break;
     case IDM_CLEARLOG: SetWindowTextW(g_log, L""); s_log_bol = true; break;
     case IDM_EXIT:  DestroyWindow(g_wnd); return;
     case IDM_PLAT_MLB: set_platform(SIM_PLATFORM_MLB_EVO, true); break;
@@ -717,6 +812,7 @@ static LRESULT CALLBACK wnd_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
         case 'M': sim_request_menu(); break;
         case 'D': set_mode(sim_mode() == HUD_MODE_MIN ? HUD_MODE_FULL : HUD_MODE_MIN); break;   /* полный <-> минимальный */
         case 'S': screenshot(); break;
+        case 'K': open_map(); break;
         case 'O': if (ctrl) on_command(IDC_OPENF, 0); break;
         }
         return 0;
@@ -760,6 +856,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show)
     g_zoom = (int)GetPrivateProfileIntW(L"sim", L"zoom", g_dpi >= 168 ? 3 : 2, g_ini);
     if (g_zoom < 1 || g_zoom > 4) g_zoom = 2;
     g_sound_on = GetPrivateProfileIntW(L"sim", L"sound", 1, g_ini) != 0;
+    {   /* язык интерфейса: hud_sim.ini [sim] lang=ru|en; по умолчанию — язык интерфейса Windows */
+        wchar_t lg[16];
+        GetPrivateProfileStringW(L"sim", L"lang", L"", lg, 16, g_ini);
+        if (!wcscmp(lg, L"en")) g_lang = 1;
+        else if (!wcscmp(lg, L"ru")) g_lang = 0;
+        else { WORD pl = PRIMARYLANGID(GetUserDefaultUILanguage()); g_lang = (pl == LANG_RUSSIAN || pl == LANG_UKRAINIAN || pl == LANG_BELARUSIAN) ? 0 : 1; }
+    }
 
     WNDCLASSW wc; memset(&wc, 0, sizeof wc);
     wc.lpfnWndProc = wnd_proc; wc.hInstance = inst; wc.lpszClassName = L"HudSimMain";
@@ -768,47 +871,22 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show)
     wc.lpfnWndProc = tl_proc; wc.lpszClassName = L"HudSimTimeline"; wc.hCursor = LoadCursorW(NULL, (LPCWSTR)IDC_HAND); wc.hIcon = NULL;
     RegisterClassW(&wc);
 
-    HMENU mb = CreateMenu(), mf = CreatePopupMenu(), mv = CreatePopupMenu(), mp = CreatePopupMenu(), mm = CreatePopupMenu();
-    AppendMenuW(mp, MF_STRING, IDM_PLAT_MLB, L"MLB-Evo (Audi A4 B9, I-CAN)");
-    AppendMenuW(mp, MF_STRING, IDM_PLAT_MQB, L"MQB (Comfort CAN)");
-    AppendMenuW(mm, MF_STRING, IDM_MODE_FULL, L"Полный");
-    AppendMenuW(mm, MF_STRING, IDM_MODE_MIN, L"Минимальный");
-    AppendMenuW(mm, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(mm, MF_STRING | MF_GRAYED, 0, L"Переключение: клавиша D или кнопка «Режим» в меню HUD (M)");
-    AppendMenuW(mf, MF_STRING, IDC_OPENF, L"Открыть лог…\tCtrl+O");
-    AppendMenuW(mf, MF_STRING, IDC_OPEND, L"Открыть папку поездки…");
-    AppendMenuW(mf, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(mf, MF_STRING, IDM_CAMS, L"Загрузить базу камер (cams.bin)…");
-    AppendMenuW(mf, MF_STRING, IDM_ARROWS, L"Загрузить анимацию стрелок (arrows.bin)…");
-    AppendMenuW(mf, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(mf, MF_STRING, IDC_SHOT, L"Скриншот (PNG + буфер обмена)\tS");
-    AppendMenuW(mf, MF_STRING, IDM_CLEARLOG, L"Очистить журнал");
-    AppendMenuW(mf, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(mf, MF_STRING, IDM_EXIT, L"Выход");
-    AppendMenuW(mv, MF_STRING, IDM_ZOOM1, L"Экран HUD 1× (640×172)");
-    AppendMenuW(mv, MF_STRING, IDM_ZOOM2, L"Экран HUD 2×");
-    AppendMenuW(mv, MF_STRING, IDM_ZOOM3, L"Экран HUD 3×");
-    AppendMenuW(mv, MF_STRING, IDM_ZOOM4, L"Экран HUD 4×");
-    AppendMenuW(mb, MF_POPUP, (UINT_PTR)mf, L"Файл");
-    AppendMenuW(mb, MF_POPUP, (UINT_PTR)mp, L"Платформа");
-    AppendMenuW(mb, MF_POPUP, (UINT_PTR)mm, L"Режим");
-    AppendMenuW(mb, MF_POPUP, (UINT_PTR)mv, L"Вид");
+    HMENU mb = build_menu();
 
-    g_wnd = CreateWindowExW(WS_EX_ACCEPTFILES, L"HudSimMain", L"HUD Sim (прошивка " HUD_FW_VERSION L")",
+    g_wnd = CreateWindowExW(WS_EX_ACCEPTFILES, L"HudSimMain", L"HUD Sim",
                             WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, 1000, 700, NULL, mb, inst, NULL);
     if (!g_wnd) return 1;
-    CheckMenuRadioItem(mb, IDM_ZOOM1, IDM_ZOOM4, IDM_ZOOM1 + g_zoom - 1, MF_BYCOMMAND);
-    sync_mode_menu();
+    sync_menus();
 
     NONCLIENTMETRICSW ncm; memset(&ncm, 0, sizeof ncm); ncm.cbSize = sizeof ncm;
     if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof ncm, &ncm, 0)) g_font = CreateFontIndirectW(&ncm.lfMessageFont);
     if (!g_font) g_font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
     g_mono = CreateFontW(-S(12), 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, FIXED_PITCH | FF_MODERN, L"Consolas");
 
-    for (int i = 0; i < NBTN; i++) g_btn[i] = mk(L"BUTTON", k_btn[i].text, BS_PUSHBUTTON, 0, k_btn[i].id, g_font);
+    for (int i = 0; i < NBTN; i++) g_btn[i] = mk(L"BUTTON", T(k_btn[i].ru, k_btn[i].en), BS_PUSHBUTTON, 0, k_btn[i].id, g_font);
     g_speed = mk(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL, 0, IDC_SPEED, g_font);
     for (int i = 0; i < NSPEED; i++) { wchar_t t[16]; swprintf(t, 16, L"×%g", k_speeds[i]); SendMessageW(g_speed, CB_ADDSTRING, 0, (LPARAM)t); }
-    g_sound = mk(L"BUTTON", L"Звук", BS_AUTOCHECKBOX, 0, IDC_SOUND, g_font);
+    g_sound = mk(L"BUTTON", T(L"Звук", L"Sound"), BS_AUTOCHECKBOX, 0, IDC_SOUND, g_font);
     SendMessageW(g_sound, BM_SETCHECK, g_sound_on ? BST_CHECKED : BST_UNCHECKED, 0);
     g_tl  = mk(L"HudSimTimeline", L"", 0, 0, 0, g_font);
     g_st1 = mk(L"STATIC", L"", SS_LEFTNOWORDWRAP | SS_NOPREFIX, 0, 0, g_font);
@@ -829,7 +907,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show)
         GetPrivateProfileStringW(L"sim", L"cams", L"", p, MAX_PATH, g_ini);
         if (!(p[0] && load_cams(p, true))) {
             swprintf(p, MAX_PATH * 2, L"%ls\\cams.bin", g_exedir);
-            if (!load_cams(p, true)) logf_w(L"[sim] cams.bin не найден — камеры не показываются (меню «Файл» → «Загрузить базу камер»)\n");
+            if (!load_cams(p, true)) logf_w(T(L"[sim] cams.bin не найден — камеры не показываются (меню «Файл» → «Загрузить базу камер»)\n", L"[sim] cams.bin not found — cameras are not shown (File → Load camera database)\n"));
         }
     }
 
@@ -841,7 +919,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show)
             swprintf(p, MAX_PATH * 2, L"%ls\\arrows.bin", g_exedir);
             if (!load_arrows(p, true)) {
                 swprintf(p, MAX_PATH * 2, L"%ls\\..\\..\\arrows\\arrows.bin", g_exedir);
-                if (!load_arrows(p, true)) logf_w(L"[sim] arrows.bin не найден — стрелки статичные, кнопки «Анимация стрелок» в меню нет (меню «Файл» → «Загрузить анимацию стрелок»)\n");
+                if (!load_arrows(p, true)) logf_w(T(L"[sim] arrows.bin не найден — стрелки статичные, кнопки «Анимация стрелок» в меню нет (меню «Файл» → «Загрузить анимацию стрелок»)\n",
+                                                                  L"[sim] arrows.bin not found — arrows are static, no Arrow animation button in the menu (File → Load arrow animation)\n"));
             }
         }
     }
@@ -853,6 +932,16 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show)
         if (argv && argc > 1) open_path(argv[1], true);
         else if (GetPrivateProfileStringW(L"sim", L"last", L"", p, MAX_PATH, g_ini) && p[0]) open_path(p, false);
         if (argv) LocalFree(argv);
+    }
+
+    {   /* карта: порт и ключи (необязательно) — [map] port, yandex_key, gis_key в hud_sim.ini */
+        wchar_t hp[MAX_PATH * 2], yk[160], gk[160]; char y8[320], g8[320];
+        GetPrivateProfileStringW(L"map", L"yandex_key", L"", yk, 160, g_ini);
+        GetPrivateProfileStringW(L"map", L"gis_key", L"", gk, 160, g_ini);
+        WideCharToMultiByte(CP_UTF8, 0, yk, -1, y8, sizeof y8, NULL, NULL);
+        WideCharToMultiByte(CP_UTF8, 0, gk, -1, g8, sizeof g8, NULL, NULL);
+        swprintf(hp, MAX_PATH * 2, L"%ls\\map.html", g_exedir);
+        map_server_start((int)GetPrivateProfileIntW(L"map", L"port", 8765, g_ini), hp, y8, g8);
     }
 
     ShowWindow(g_wnd, show);

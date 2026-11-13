@@ -6,5 +6,7 @@
 */
 #include "hud_config.h"
 #undef  HUD_MENU_ONLY_STOPPED
+#undef  HUD_LOG_MEM                  /* счётчик памяти [mem] — только для платы */
+#define HUD_LOG_MEM 0
 #define HUD_MENU_ONLY_STOPPED 0
 #include "hud_mockup.c"

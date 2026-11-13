@@ -1,119 +1,138 @@
-# HUD Sim — экран HUD на ПК (Windows) по логам сниффера
+# HUD Sim — the HUD screen on a PC (Windows), driven by sniffer logs
 
-Программа показывает экран HUD 640×172 на компьютере и проигрывает в него записанные логи
-сниффера (`can_log_NNNN.txt`). Экран рисует **тот же код, что в прошивке**: `hud_mockup.c`,
-`can_decode.c` (для MLB-Evo и для MQB), `psd_speedlimit.c`, `cam_alert.c`, `hud_settings.cpp`, шрифты и картинки берутся из
-`waveshare_hud_mockup/` без единой правки и собираются вместе с LVGL 8.4. Поменяли что-то в
-экране или декодере — пересоберите `hud_sim.exe` и смотрите результат на реальной поездке,
-не прошивая плату.
+**Simulator version 1.0.0** · [Русская версия](README_ru.md)
 
-## Запуск
+The program shows the 640×172 HUD screen on a computer and plays recorded sniffer logs (`can_log_NNNN.txt`) into it.
+The screen is drawn by **the same code as in the firmware**: `hud_mockup.c`, `can_decode.c` (for MLB-Evo and for MQB),
+`psd_speedlimit.c`, `cam_alert.c`, `hud_settings.cpp`; the fonts and images are taken from `waveshare_hud_mockup/`
+without a single edit and built together with LVGL 8.4. Changed something in the screen or the decoder? Rebuild
+`hud_sim.exe` and look at the result on a real drive without flashing the board.
 
-`hud_sim.exe` собирается скриптом `build_win.bat` (см. «Сборка»), готового exe в репозитории нет; ставить
-ничего не нужно. Откройте файл лога или папку
-поездки: кнопками, через меню «Файл», перетаскиванием в окно или аргументом командной строки:
+![HUD Sim window: the HUD screen, timeline, trip logs and the firmware log](../../docs/screens/hud_sim_window.png)
+*The simulator window: the HUD screen (full mode with an animated arrow), the timeline with manoeuvre marks, the list of trip logs and the firmware log*
+
+## Running
+
+`hud_sim.exe` is built with `build_win.bat` (see "Building"); there is no ready exe in the repository, and nothing has to be
+installed. Open a log file or a trip folder with the buttons, the "File" menu, by dropping it onto the window or as a command-line argument:
 
 ```
 hud_sim.exe D:\logs\trip
 ```
 
-Файлы папки идут в списке слева и проигрываются подряд. Если метки времени следующего файла
-продолжают предыдущий (та же поездка), HUD переходит на него без разрыва.
+The files of a folder are listed on the left and played one after another. If the timestamps of the next file continue
+the previous one (the same trip), the HUD moves on to it without a break.
 
-## Платформа: MLB-Evo / MQB
+## Platform: MLB-Evo / MQB
 
-Меню «Платформа» переключает карту CAN-сигналов декодера — то же, что `HUD_PLATFORM` в
-`hud_config.h` (`HUD_PLATFORM_MLB_EVO` / `HUD_PLATFORM_MQB`). В прошивке это выбор при сборке,
-поэтому в программу `can_decode.c` собран дважды, и экземпляры переключаются на ходу: текущее
-место лога сразу проигрывается заново через выбранный декодер. Выбор запоминается в
-`hud_sim.ini` и виден в заголовке окна и в строке состояния. Логи MQB открывайте с платформой
-MQB, логи A4 — с MLB-Evo: по самому логу платформа не определяется.
+The "Platform" menu switches the CAN signal map of the decoder, the same as `HUD_PLATFORM` in `hud_config.h`
+(`HUD_PLATFORM_MLB_EVO` / `HUD_PLATFORM_MQB`). In the firmware this is a build-time choice, so `can_decode.c` is built into the program
+twice and the instances are switched on the fly: the current place of the log is replayed at once through the selected decoder.
+The choice is kept in `hud_sim.ini` and shown in the window title and the status line. Open MQB logs with the MQB
+platform and A4 logs with MLB-Evo: the platform cannot be detected from the log itself.
 
-## Режим экрана: полный / минимальный
+## Screen mode: full / minimalist
 
-Меню «Режим» (или клавиша `D`) переключает экран между полным и минимальным — то же, что кнопка «Режим»
-в меню настроек HUD (`HUD_DISPLAY_MODE` в `hud_config.h`, `hud_set_mode()` в прошивке). Переключение
-мгновенное, выбор запоминается в `hud_sim.ini`; мышью та же кнопка работает в меню HUD (`M`), и отметка
-в меню «Режим» подхватывает её. Минимальный экран собирается из тех же файлов прошивки
-(`hud_mockup.c`, `hud_min_images.c`, шрифты `hud_font_m*.c`), отдельной сборки не требуется.
+The "Mode" menu (or the `D` key) switches the screen between the full and the minimalist layout, the same as the "Mode" button in the
+HUD settings menu (`HUD_DISPLAY_MODE` in `hud_config.h`, `hud_set_mode()` in the firmware). Switching is instant and the choice
+is kept in `hud_sim.ini`; the same button works with the mouse in the HUD menu (`M`), and the tick in the "Mode" menu follows it.
+The minimalist screen is built from the same firmware files (`hud_mockup.c`, `hud_min_images.c`, the `hud_font_m*.c` fonts), no
+separate build is needed.
 
-## Управление
+## Controls
 
-| Действие | Кнопка | Клавиша |
+| Action | Button | Key |
 |---|---|---|
-| Пуск / пауза | «Пуск» | Пробел |
-| Назад / вперёд на 10 с (60 с) | «−10 с», «+10 с» | ← / → (с Shift) |
-| Следующий / предыдущий манёвр навигации | «манёвр »», «« манёвр» | N / P |
-| Скорость ×0.25 … ×32 | список | ↑ / ↓ |
-| Следующий / предыдущий файл | «файл »», «« файл» | PgDn / PgUp |
-| Меню настроек HUD | «Меню HUD» или двойной щелчок по экрану | M |
-| Режим экрана: полный / минимальный | меню «Режим» | D |
-| Скриншот (PNG в `shots\` и в буфер обмена) | «Скриншот» | S |
+| Play / pause | "Play" | Space |
+| Back / forward 10 s (60 s) | "−10 s", "+10 s" | ← / → (with Shift) |
+| Next / previous navigation manoeuvre | "manoeuvre »", "« manoeuvre" | N / P |
+| Speed ×0.25 … ×32 | list | ↑ / ↓ |
+| Next / previous file | "file »", "« file" | PgDn / PgUp |
+| HUD settings menu | "HUD menu" or a double click on the screen | M |
+| Screen mode: full / minimalist | "Mode" menu | D |
+| Map (OpenStreetMap / Yandex / 2GIS) | "Map" | K |
+| Screenshot (PNG into `shots\` and to the clipboard) | "Screenshot" | S |
 
-- **Шкала времени**: щелчок или протяжка — перемотка. Зелёная полоса — навигация ведёт по
-  маршруту (BAP `RG_Status` = 1), оранжевые метки — смена манёвра (BAP `ManeuverDescriptor`).
-- **Мышь на экране HUD** — это касание: кнопки меню нажимаются как на плате. Меню открывается
-  на любой скорости (в машине — только на стоящей): для этого экран собирается через
-  `sim_mockup.c` с `HUD_MENU_ONLY_STOPPED 0`, сам `hud_mockup.c` не меняется.
-- **Строки состояния**: позиция в файле, часы машины из лога, подсветка, которую выставил бы
-  HUD, скорость, состояние навигации (манёвр, расстояние, бар-граф, до цели, время), GNSS.
-- **Журнал** (справа внизу): то, что прошивка пишет в Serial (`[hud]`, `[cam]`, `[nav]`,
-  `[LVGL]` — по флагам `HUD_LOG_*` в `hud_config.h`), и строка на каждую смену манёвра с сырым
-  сообщением BAP `0x17` — удобно разбирать новые коды стрелок.
+- **Timeline**: click or drag to seek. The green bar is navigation guiding along a route (BAP `RG_Status` = 1), the orange marks
+  are manoeuvre changes (BAP `ManeuverDescriptor`).
+- **Mouse on the HUD screen** is the touch: the menu buttons are pressed as on the board. The menu opens at any speed (in the car only
+  when stopped): for this the screen is built through `sim_mockup.c` with `HUD_MENU_ONLY_STOPPED 0`; `hud_mockup.c` itself is unchanged.
+- **Status lines**: position in the file, the car clock from the log, the backlight the HUD would set, the speed, the navigation
+  state (manoeuvre, distance, bar graph, remaining distance, time), GNSS.
+- **Log** (bottom right): what the firmware writes to Serial (`[hud]`, `[cam]`, `[nav]`, `[LVGL]` — by the `HUD_LOG_*` flags in
+  `hud_config.h`), and a line for every manoeuvre change with the raw BAP `0x17` message — handy for working out new arrow codes.
 
-Настройки меню HUD и самой программы хранятся в `hud_sim.ini` рядом с exe (вместо NVS):
-`hud_settings.cpp` прошивки собирается как есть, поэтому новые пункты меню сохраняются сами.
+The settings of the HUD menu and of the program itself are kept in `hud_sim.ini` next to the exe (instead of NVS): the firmware's
+`hud_settings.cpp` is built as is, so new menu items are saved by themselves.
 
-## Анимированные стрелки (полный режим)
+## Interface language
 
-`arrows.bin` (его делает `tools/gen_arrow_anim.py`, готовый лежит в `arrows/` репозитория) подхватывается сам: из `hud_sim.ini`,
-рядом с exe или из `..\..\arrows\arrows.bin`, то есть когда симулятор лежит в `tools\hud_sim_win` репозитория, ничего делать не нужно.
-Иначе — меню «Файл» → «Загрузить анимацию стрелок» или перетащите файл в окно. Как и на плате, только с этим файлом в меню HUD
-появляется кнопка «Анимация стрелок» (на второй строке, рядом с «Расход»), а полный режим играет анимацию;
-минимальный режим стрелки не анимирует. Если файла нет, в журнале будет строка `[sim] arrows.bin не найден`.
+The "Язык / Language" menu switches between Russian and English. Buttons, menus, status lines, the log and the map window are
+translated; the choice is stored in `hud_sim.ini` (`[sim] lang=ru|en`). Until you choose, the Windows UI language is used.
+The HUD screen itself does not change with it: that is set by the firmware settings (HUD menu).
 
-## Камеры
+## Map (OpenStreetMap / Yandex / 2GIS)
 
-`cams.bin` — положите рядом с exe, перетащите в окно или выберите в меню «Файл». Без базы
-камеры просто не показываются.
+The "Map" button (key K, "View" menu) opens a separate window (Edge or Chrome in app mode, otherwise the default browser)
+with the car position from the log's GNSS data (CAN `0x486` NavPos_01, heading from `0x484`). The marker moves with playback
+and seeking. For this `hud_sim.exe` starts a local server on `127.0.0.1:8765` (port: `[map] port` in `hud_sim.ini`; if busy,
+the next one is used) and serves `map.html`, which sits next to the exe and can be edited without rebuilding.
 
-## Что устроено иначе, чем на плате
+* **OpenStreetMap** is the default and needs no key (max zoom 19, no lanes): good for checking that the coordinates move.
+* **Yandex** and **2GIS** need their own free API key: Yandex — JavaScript API in the developer console, 2GIS — MapGL at
+  platform.2gis.ru. Paste the key into the field at the bottom of the map window (remembered in the browser) or put it into
+  `hud_sim.ini`: `[map] yandex_key=…`, `gis_key=…`.
+* Zoom: the −/+ buttons or keys, up to 21. "Lanes" switches to satellite at maximum zoom. "Follow" keeps the car centred,
+  "track" draws the path travelled. With no GNSS fix the marker stays at the last known position.
 
-- Источник кадров — файл: в декодер идут **все** кадры лога, как при своём трансивере (TWAI).
-  Путь через BLE (`ble_can_client.cpp`, фильтр ACL, упаковка) здесь не участвует.
-- Время HUD — это время лога: на паузе оно стоит (таймауты свежести тоже),
-  на ×8 идёт в 8 раз быстрее. При перемотке время прыгает вперёд на 2 минуты (всё прежнее
-  устаревает по таймаутам), затем мгновенно проигрываются 30 с до выбранной точки — поэтому
-  навигация и знаки после перемотки появляются сразу.
-- Звук идёт через звуковую карту ПК; стартовый звук не проигрывается.
-- Фоторезистора нет (в панели калибровки — постоянные 1200 мВ), режима обновления (OTA) нет.
-- Память LVGL — обычный `malloc`, а не пул 96 КБ в PSRAM из `config/lv_conf.h` платы: нехватку памяти
-  LVGL симулятор не покажет (на плате её показывает строка `[mem]` журнала, `HUD_LOG_MEM`).
-- Логи `.lzma` нужно сначала распаковать.
+## Animated arrows (full mode)
 
-## Сборка
+`arrows.bin` (made by `tools/gen_arrow_anim.py`; a ready one is in `arrows/` of the repository) is picked up automatically: from `hud_sim.ini`,
+next to the exe, or from `..\..\arrows\arrows.bin` — so when the simulator sits in `tools\hud_sim_win` of the repository nothing has to be done.
+Otherwise use the "File" → "Load arrow animation" menu or drop the file onto the window. As on the board, the "Arrow animation" button
+appears in the HUD menu only with this file (second row, next to "Fuel"), and the full mode plays the animation; the minimalist mode
+does not animate the arrows. Without the file the log shows `[sim] arrows.bin not found`.
 
-`build_win.bat` — нужен `git` и компилятор в `PATH`: [zig](https://ziglang.org/download/)
-(один архив, ставить не надо) или MinGW-w64 `gcc`/`g++`. При первом запуске скрипт скачивает
-LVGL 8.4.0 в `lvgl\` и собирает его (несколько минут), дальше пересобираются только файлы HUD.
+## Cameras
 
-Папка прошивки ищется в `..\..\waveshare_hud_mockup` — то есть когда `hud_sim_win` лежит в
-`tools\` репозитория, указывать ничего не нужно. Если папка симулятора лежит отдельно, передайте
-путь один раз, он запомнится в `fw_path.txt`:
+`cams.bin` — put it next to the exe, drop it onto the window or choose it in the "File" menu. Without the database cameras are
+simply not shown.
+
+## What is different from the board
+
+- The frame source is a file: **all** frames of the log go into the decoder, as with an own transceiver (TWAI). The BLE path
+  (`ble_can_client.cpp`, the ACL filter, packing) is not involved.
+- The HUD time is the log time: on pause it stands still (so do the freshness timeouts), at ×8 it runs eight times faster. On a seek the
+  time jumps forward by 2 minutes (everything old expires by timeout), then the 30 s before the chosen point are played instantly — so
+  navigation and signs appear at once after a seek.
+- The sound goes through the PC sound card; the start-up sound is not played.
+- There is no photoresistor (the calibration panel shows a constant 1200 mV) and no update (OTA) mode.
+- LVGL memory is a plain `malloc`, not the 96 KB PSRAM pool from the board's `config/lv_conf.h`: the simulator will not show an LVGL
+  out-of-memory (on the board the `[mem]` log line does, `HUD_LOG_MEM`; it is switched off in the simulator).
+- `.lzma` logs have to be unpacked first.
+
+## Building
+
+`build_win.bat` needs `git` and a compiler in `PATH`: [zig](https://ziglang.org/download/) (one archive, no installation) or MinGW-w64
+`gcc`/`g++`. On the first run the script downloads LVGL 8.4.0 into `lvgl\` and builds it (a few minutes); after that only the HUD files are rebuilt.
+
+The firmware folder is looked up in `..\..\waveshare_hud_mockup`, i.e. when `hud_sim_win` sits in `tools\` of the repository nothing has to be
+specified. If the simulator folder is elsewhere, pass the path once, it is remembered in `fw_path.txt`:
 
 ```
 build_win.bat D:\GitHub\HUD-Audi-A4-B9-MLB-Evo-Waveshare-ESP32-S3-Touch-LCD-3.49\waveshare_hud_mockup
 ```
 
-Собираются все `.c` из папки прошивки, кроме привязанных к железу (`hud_sound.c`, `i2c_bsp.c`,
-`lvgl_port.c`), так что новые файлы шрифтов и картинок подхватываются сами.
+All `.c` files of the firmware folder are built except the hardware-bound ones (`hud_sound.c`, `i2c_bsp.c`, `lvgl_port.c`), so new font and
+image files are picked up by themselves.
 
-| Файл | Что в нём |
+| File | What is in it |
 |---|---|
-| `sim_core.c/.h` | время, экран, касание, заглушки железа (звук, подсветка, OTA, источник), проигрыватель логов |
-| `sim_decode_mlb.c`, `sim_decode_mqb.c` | `can_decode.c` прошивки, собранный под каждую платформу |
-| `sim_mockup.c` | `hud_mockup.c` прошивки с меню, доступным на любой скорости |
-| `sim_win.c` | окно Windows |
-| `sim_headless.c` | то же ядро без окна: кадр HUD из лога в BMP (`build_headless.sh`, Linux/WSL) |
-| `lv_conf.h` | настройки LVGL: 16 бит, сжатые шрифты — как в прошивке |
-| `shim/` | заглушки заголовков ESP-IDF / FreeRTOS / Arduino (`Preferences` → `hud_sim.ini`), которые подключают файлы прошивки |
+| `sim_core.c/.h` | time, screen, touch, hardware stubs (sound, backlight, OTA, source), the log player |
+| `sim_decode_mlb.c`, `sim_decode_mqb.c` | the firmware's `can_decode.c` built for each platform |
+| `sim_mockup.c` | the firmware's `hud_mockup.c` with the menu available at any speed and the `[mem]` log off |
+| `sim_win.c` | the Windows window (Russian and English UI) |
+| `sim_map.c/.h`, `map.html` | the local server and the page of the map window |
+| `sim_headless.c` | the same core without a window: one HUD frame from a log into a BMP (`build_headless.sh`, Linux/WSL; `mode=1` — minimalist screen, `SIM_ARROWS=<path>` — animated arrows) |
+| `lv_conf.h` | LVGL settings: 16 bit, compressed fonts — as in the firmware |
+| `shim/` | stub headers of ESP-IDF / FreeRTOS / Arduino (`Preferences` → `hud_sim.ini`) that the firmware files include |

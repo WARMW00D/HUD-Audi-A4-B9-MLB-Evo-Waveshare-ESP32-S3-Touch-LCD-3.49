@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><title>HUD Sim — map</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+html,body{margin:0;height:100%;font:13px system-ui,Segoe UI,sans-serif;background:#222;color:#eee}
+#map{position:absolute;inset:0 0 34px 0}
+#bar{position:absolute;left:0;right:0;bottom:0;height:34px;display:flex;gap:10px;align-items:center;padding:0 8px;background:#2b2b2b;overflow:hidden;white-space:nowrap}
+#bar select,#bar input[type=text],#bar button{background:#3a3a3a;color:#eee;border:1px solid #555;border-radius:3px;padding:2px 6px;font:inherit}
+#bar input[type=text]{width:190px}
+#st{margin-left:auto;color:#9c9}
+#msg{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);background:#000c;padding:14px 20px;border-radius:6px;max-width:520px;text-align:center;display:none;line-height:1.5}
+</style></head><body>
+<div id="map"></div><div id="msg"></div>
+<div id="bar">
+ <select id="prov"><option value="osm">OpenStreetMap</option><option value="yandex" data-i="yandex">Яндекс</option><option value="2gis" data-i="gis">2ГИС</option></select>
+ <select id="lay"><option value="map" data-i="scheme">Схема</option><option value="sat" data-i="sat">Спутник</option></select>
+ <input type="text" id="key" placeholder="API key">
+ <button id="zm">−</button><span id="zv">17</span><button id="zp">+</button>
+ <button id="lane" data-i="lanes" data-t="lanes_t">Полосы</button>
+ <label><input type="checkbox" id="fol" checked> <span data-i="follow">следить</span></label>
+ <label><input type="checkbox" id="trk" checked> <span data-i="track">трек</span></label>
+ <span id="st"></span>
+</div>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+/* язык: ?lang=ru|en от hud_sim.exe, иначе язык браузера */
+const LANG=((new URLSearchParams(location.search).get("lang")||navigator.language||"ru").slice(0,2).toLowerCase()==="ru")?"ru":"en";
+const TX={
+ ru:{yandex:"Яндекс",gis:"2ГИС",scheme:"Схема",sat:"Спутник",lanes:"Полосы",lanes_t:"Приблизить до уровня, где видны полосы",follow:"следить",track:"трек",
+     nodata:"нет данных",title:"HUD Sim — карта",
+     needY:"Нужен ключ Яндекс JavaScript API (developer.tech.yandex.ru → «Кабинет разработчика»). Вставьте его в поле внизу.",
+     needG:"Нужен ключ 2ГИС MapGL (platform.2gis.ru → «Получить ключ»). Вставьте его в поле внизу.",
+     noload:"не загрузился ",switchOsm:"Можно переключиться на OpenStreetMap — ключ не нужен.",
+     hdg:"курс",kmh:"км/ч",sats:"спутн.",fix:"фикс",nofix:" — нет фикса, последняя известная позиция",
+     nocoord:"в логе нет координат (нет фикса GNSS)",nolog:"лог не открыт",noresp:"HUD Sim не отвечает"},
+ en:{yandex:"Yandex",gis:"2GIS",scheme:"Map",sat:"Satellite",lanes:"Lanes",lanes_t:"Zoom in to the level where lanes are visible",follow:"follow",track:"track",
+     nodata:"no data",title:"HUD Sim — map",
+     needY:"A Yandex JavaScript API key is required (developer.tech.yandex.ru). Paste it into the field at the bottom.",
+     needG:"A 2GIS MapGL key is required (platform.2gis.ru). Paste it into the field at the bottom.",
+     noload:"failed to load ",switchOsm:"You can switch to OpenStreetMap — no key needed.",
+     hdg:"heading",kmh:"km/h",sats:"sats",fix:"fix",nofix:" — no fix, last known position",
+     nocoord:"no coordinates in the log (no GNSS fix)",nolog:"no log open",noresp:"HUD Sim is not responding"}
+}[LANG];
+document.documentElement.lang=LANG; document.title=TX.title;
+document.querySelectorAll("[data-i]").forEach(e=>{e.textContent=TX[e.dataset.i]});
+document.querySelectorAll("[data-t]").forEach(e=>{e.title=TX[e.dataset.t]});
+$("st").textContent=TX.nodata;
+const LS=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}};
+let CFG={yandex_key:"",gis_key:""};
+const state={prov:LS("prov")||"osm",lay:LS("lay")||"map",zoom:+(LS("zoom")||17),
+  keys:{yandex:LS("key_yandex")||"","2gis":LS("key_2gis")||"",osm:""},pos:null,track:[],lastSeq:-1};
+const MAXZ={yandex:21,"2gis":21,osm:19};
+let impl=null;
+
+function arrowURI(h,ok){
+  const c=ok?"#1e88e5":"#888";
+  const s=`<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="-22 -22 44 44"><g transform="rotate(${h||0})"><path d="M0-17L11 13L0 7L-11 13Z" fill="${c}" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></g></svg>`;
+  return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(s);
+}
+function msg(t){const m=$("msg");if(t){m.innerHTML=t;m.style.display="block"}else m.style.display="none"}
+function loadScript(src){return new Promise((ok,err)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=()=>err(new Error(TX.noload+src));document.head.appendChild(s)})}
+function loadCss(href){const l=document.createElement("link");l.rel="stylesheet";l.href=href;document.head.appendChild(l)}
+
+/* ---------- Яндекс (JS API 2.1) ---------- */
+async function mkYandex(el,c,z){
+  const k=state.keys.yandex; if(!k) throw new Error(TX.needY);
+  await loadScript("https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey="+encodeURIComponent(k));
+  await new Promise(r=>ymaps.ready(r));
+  const map=new ymaps.Map(el,{center:[c.lat,c.lon],zoom:z,controls:["rulerControl"],type:state.lay==="sat"?"yandex#hybrid":"yandex#map"},{minZoom:3,maxZoom:21,suppressMapOpenBlock:true});
+  const pm=new ymaps.Placemark([c.lat,c.lon],{},{iconLayout:"default#image",iconImageHref:arrowURI(0,true),iconImageSize:[44,44],iconImageOffset:[-22,-22]});
+  const pl=new ymaps.Polyline([],{},{strokeColor:"#1e88e5cc",strokeWidth:4});
+  map.geoObjects.add(pl).add(pm);
+  map.events.add("boundschange",e=>{const nz=e.get("newZoom");if(nz!==e.get("oldZoom"))zoomChanged(nz)});
+  return{ map,
+    setLayer(l){map.setType(l==="sat"?"yandex#hybrid":"yandex#map")},
+    getZoom:()=>map.getZoom(), setZoom(z){map.setZoom(z,{duration:150})},
+    center(p){map.setCenter([p.lat,p.lon],map.getZoom(),{duration:0})},
+    marker(p,h,ok){pm.geometry.setCoordinates([p.lat,p.lon]);pm.options.set("iconImageHref",arrowURI(h,ok))},
+    line(a){pl.geometry.setCoordinates(a.map(p=>[p.lat,p.lon]))}, showLine(v){pl.options.set("visible",v)},
+    destroy(){map.destroy()} };
+}
+/* ---------- 2ГИС (MapGL) ---------- */
+async function mkGis(el,c,z){
+  const k=state.keys["2gis"]; if(!k) throw new Error(TX.needG);
+  await loadScript("https://mapgl.2gis.com/api/js/v1");
+  const map=new mapgl.Map(el,{center:[c.lon,c.lat],zoom:z,key:k,maxZoom:21,minZoom:3,zoomControl:false,trafficControl:false});
+  const mk=new mapgl.Marker(map,{coordinates:[c.lon,c.lat],icon:arrowURI(0,true),size:[44,44],anchor:[22,22]});
+  const pl=new mapgl.Polyline(map,{coordinates:[],width:4,color:"#1e88e5"});
+  map.on("zoomend",()=>zoomChanged(map.getZoom()));
+  return{ map,
+    setLayer(l){ try{map.setStyleById(l==="sat"?"e1c4da60-aa55-4ea7-87d0-a9d7b9c0f2c6":"c080bb6a-8134-4993-93a1-5b4d8c39a0e5")}catch(e){} },
+    getZoom:()=>map.getZoom(), setZoom(z){map.setZoom(z,{duration:150})},
+    center(p){map.setCenter([p.lon,p.lat])},
+    marker(p,h,ok){mk.setCoordinates([p.lon,p.lat]);mk.setIcon({icon:arrowURI(h,ok),size:[44,44],anchor:[22,22]})},
+    line(a){pl.setCoordinates(a.map(p=>[p.lon,p.lat]))}, showLine(v){v?0:pl.setCoordinates([])},
+    destroy(){map.destroy()} };
+}
+/* ---------- OpenStreetMap (Leaflet, без ключа; полос на нём нет) ---------- */
+async function mkOsm(el,c,z){
+  loadCss("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
+  await loadScript("https://unpkg.com/leaflet@1.9.4/dist/leaflet.js");
+  const map=L.map(el,{zoomControl:false,maxZoom:19}).setView([c.lat,c.lon],Math.min(z,19));
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
+  const mk=L.marker([c.lat,c.lon],{icon:L.icon({iconUrl:arrowURI(0,true),iconSize:[44,44],iconAnchor:[22,22]})}).addTo(map);
+  const pl=L.polyline([],{color:"#1e88e5",weight:4}).addTo(map);
+  map.on("zoomend",()=>zoomChanged(map.getZoom()));
+  return{ map, setLayer(){}, getZoom:()=>map.getZoom(), setZoom(z){map.setZoom(Math.min(z,19))},
+    center(p){map.setView([p.lat,p.lon],map.getZoom(),{animate:false})},
+    marker(p,h,ok){mk.setLatLng([p.lat,p.lon]);mk.setIcon(L.icon({iconUrl:arrowURI(h,ok),iconSize:[44,44],iconAnchor:[22,22]}))},
+    line(a){pl.setLatLngs(a.map(p=>[p.lat,p.lon]))}, showLine(v){pl.setStyle({opacity:v?1:0})},
+    destroy(){map.remove()} };
+}
+
+function zoomChanged(z){ state.zoom=z; $("zv").textContent=Math.round(z*10)/10; LS("zoom",z); }
+
+async function build(){
+  msg(""); if(impl){try{impl.destroy()}catch(e){} impl=null}
+  const old=$("map"); const el=document.createElement("div"); el.id="map"; old.replaceWith(el);
+  const c=state.pos||{lat:55.7558,lon:37.6173};
+  const z=Math.min(state.zoom,MAXZ[state.prov]);
+  try{
+    impl=await (state.prov==="yandex"?mkYandex:state.prov==="2gis"?mkGis:mkOsm)(el,c,z);
+    zoomChanged(z); impl.setLayer(state.lay); redraw(true);
+  }catch(e){ msg("<b>"+state.prov+"</b>: "+e.message+"<br>"+TX.switchOsm); }
+}
+function redraw(force){
+  if(!impl||!state.pos)return;
+  const p=state.pos; impl.marker(p,p.hdg,p.fix>=3);
+  if($("fol").checked||force) impl.center(p);
+  impl.showLine($("trk").checked); if($("trk").checked) impl.line(state.track);
+}
+function dist(a,b){const k=111320,dx=(a.lon-b.lon)*k*Math.cos(a.lat*Math.PI/180),dy=(a.lat-b.lat)*k;return Math.hypot(dx,dy)}
+
+async function poll(){
+  try{
+    const r=await fetch("/pos?"+Date.now(),{cache:"no-store"}); const j=await r.json();
+    if(j.valid&&(j.lat||j.lon)){
+      const p={lat:j.lat,lon:j.lon,hdg:j.hdg<0?(state.pos?state.pos.hdg:0):j.hdg,fix:j.fix,sat:j.sat,spd:j.spd,t:j.t};
+      const prev=state.track[state.track.length-1];
+      if(prev&&(dist(prev,p)>1500||p.t<prev.t))state.track=[];
+      if(!prev||dist(prev,p)>1.5)state.track.push(p); if(state.track.length>4000)state.track.shift();
+      const first=!state.pos; state.pos=p; if(first&&impl)impl.center(p);
+      redraw(false);
+      $("st").textContent=`${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}  ${TX.hdg} ${p.hdg|0}°  ${p.spd} ${TX.kmh}  ${TX.sats} ${p.sat}  ${TX.fix} ${p.fix}`+(p.fix<3?TX.nofix:"");
+    } else $("st").textContent=j.loaded?TX.nocoord:TX.nolog;
+  }catch(e){ $("st").textContent=TX.noresp; }
+  setTimeout(poll,150);
+}
+
+$("prov").value=state.prov; $("lay").value=state.lay; $("key").value=state.keys[state.prov]||"";
+$("prov").onchange=()=>{state.prov=$("prov").value;LS("prov",state.prov);$("key").value=state.keys[state.prov]||"";$("key").disabled=state.prov==="osm";build()};
+$("lay").onchange=()=>{state.lay=$("lay").value;LS("lay",state.lay);impl&&impl.setLayer(state.lay)};
+$("key").onchange=()=>{state.keys[state.prov]=$("key").value.trim();LS("key_"+state.prov,state.keys[state.prov]);build()};
+$("zp").onclick=()=>impl&&impl.setZoom(Math.min(MAXZ[state.prov],Math.round(impl.getZoom())+1));
+$("zm").onclick=()=>impl&&impl.setZoom(Math.max(3,Math.round(impl.getZoom())-1));
+$("lane").onclick=()=>{ if(impl){ state.lay="sat"; $("lay").value="sat"; LS("lay","sat"); impl.setLayer("sat"); impl.setZoom(MAXZ[state.prov]); } };
+$("fol").onchange=()=>redraw(true); $("trk").onchange=()=>redraw(false);
+addEventListener("keydown",e=>{ if(e.target.tagName==="INPUT")return; if(e.key==="+"||e.key==="=")$("zp").click(); if(e.key==="-")$("zm").click(); if(e.key==="f")$("fol").click(); });
+
+fetch("/cfg").then(r=>r.json()).then(c=>{CFG=c;
+  if(!state.keys.yandex&&c.yandex_key)state.keys.yandex=c.yandex_key;
+  if(!state.keys["2gis"]&&c.gis_key)state.keys["2gis"]=c.gis_key;
+  $("key").value=state.keys[state.prov]||"";
+}).catch(()=>{}).finally(()=>{$("key").disabled=state.prov==="osm";build();poll();});
+</script></body></html>

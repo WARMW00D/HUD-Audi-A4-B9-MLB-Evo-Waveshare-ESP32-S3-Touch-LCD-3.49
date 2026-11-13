@@ -6,6 +6,20 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 set "FW=../../waveshare_hud_mockup"
+rem Firmware folder: argument (remembered in fw_path.txt) > fw_path.txt > ..\..\waveshare_hud_mockup
+if not "%~1"=="" (
+  set "FW=%~1"
+  >fw_path.txt echo !FW!
+) else if exist fw_path.txt (
+  set /p FW=<fw_path.txt
+)
+set "FW=!FW:\=/!"
+if "!FW:~-1!"=="/" set "FW=!FW:~0,-1!"
+if not exist "!FW!/hud_mockup.c" (
+  echo ERROR: firmware folder not found: !FW!
+  exit /b 1
+)
+echo Firmware: !FW!
 set "CC="
 where zig >nul 2>nul && set "CC=zig cc -target x86_64-windows-gnu"
 if not defined CC where gcc >nul 2>nul && set "CC=gcc"
@@ -48,5 +62,6 @@ echo [3/3] simulator...
 %CC% %CF% -w -c sim_decode_mqb.c -o build\sim_decode_mqb.o || exit /b 1
 %CC% %CF% -Wall -c sim_core.c -o build\sim_core.o || exit /b 1
 %CC% %CF% -Wall -c sim_win.c -o build\sim_win.o || exit /b 1
-%CC% -o hud_sim.exe build/sim_win.o build/sim_core.o build/sim_decode_mlb.o build/sim_decode_mqb.o build/sim_mockup.o %OBJS% @build/lv.rsp -municode -mwindows -lgdi32 -luser32 -lcomdlg32 -lcomctl32 -lshell32 -lole32 -lwinmm -lgdiplus -s || exit /b 1
+%CC% %CF% -Wall -c sim_map.c -o build\sim_map.o || exit /b 1
+%CC% -o hud_sim.exe build/sim_win.o build/sim_map.o build/sim_core.o build/sim_decode_mlb.o build/sim_decode_mqb.o build/sim_mockup.o %OBJS% @build/lv.rsp -municode -mwindows -lgdi32 -luser32 -lcomdlg32 -lcomctl32 -lshell32 -lole32 -lwinmm -lws2_32 -lgdiplus -s || exit /b 1
 echo OK: hud_sim.exe

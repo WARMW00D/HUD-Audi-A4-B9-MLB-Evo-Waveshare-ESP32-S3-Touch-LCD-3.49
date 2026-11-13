@@ -702,6 +702,9 @@ decoder can be checked on a real drive without flashing the board. Features: ope
 next manoeuvre, speeds ×0.25…×32, the settings menu of the HUD with the mouse as the touch screen, `cams.bin` and animated-arrows (`arrows.bin`, picked up from `arrows/` automatically) loading, platform switch (MLB-Evo / MQB),
 **full / minimalist mode** (the "Mode" menu or the `D` key), screenshots, the firmware log window. No exe is stored in the repository: build it with
 `tools/hud_sim_win/build_win.bat` (needs git and [zig](https://ziglang.org/download/) or MinGW-w64 in `PATH`; LVGL is downloaded on the first run).
+![HUD Sim window: the HUD screen, timeline, trip logs and the firmware log](docs/screens/hud_sim_window.png)
+*The simulator window: the HUD screen (full mode with an animated arrow), the timeline with manoeuvre marks, the trip log list and the firmware log*
+
 Details, controls and differences from the board are in [tools/hud_sim_win/README.md](tools/hud_sim_win/README.md).
 `build_headless.sh` builds the same core without a window (Linux / WSL): `mode=1 ./hud_shot log.txt 215 out.bmp` saves one frame of the minimalist mode.
 
