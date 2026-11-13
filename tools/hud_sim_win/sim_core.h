@@ -66,6 +66,7 @@ const sim_span_t *sim_nav_spans(uint32_t *count);             /* ведение 
 
 /* ---- данные из файлов (буфер должен жить всегда) ---- */
 bool sim_set_cams(const void *buf, size_t len);               /* cams.bin */
+bool sim_set_arrows(const void *buf, size_t len);             /* arrows.bin: анимированные стрелки полного режима (кнопка «Анимация стрелок» в меню HUD появляется, когда файл загружен) */
 
 /* ---- то, что даёт платформа (sim_win.c / sim_headless.c) ---- */
 void sim_plat_log(const char *utf8);                          /* строка журнала HUD */

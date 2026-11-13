@@ -1,7 +1,7 @@
 /*
   sim_headless.c — проверка ядра без окна (любая ОС): проиграть лог до момента T и сохранить кадр HUD в BMP.
   Сборка (Linux): см. build_headless.sh.   Запуск: hud_shot log.txt сек out.bmp [cams.bin]
-  Переменные окружения: mode=1 — минимальный экран (0 — полный), SIM_PLATFORM=MQB, SIM_PLAY_FROM=сек
+  Переменные окружения: mode=1 — минимальный экран (0 — полный), SIM_PLATFORM=MQB, SIM_PLAY_FROM=сек, SIM_ARROWS=путь\arrows.bin (анимация стрелок полного режима)
 */
 #include "sim_core.h"
 #include <stdio.h>
@@ -39,6 +39,7 @@ int main(int argc, char **argv)
     size_t n; char *t;
     sim_init();
     if (getenv("SIM_PLATFORM") && !strcmp(getenv("SIM_PLATFORM"), "MQB")) sim_set_platform(SIM_PLATFORM_MQB);   /* по умолчанию MLB-Evo */
+    if (getenv("SIM_ARROWS") && (t = (char *)slurp(getenv("SIM_ARROWS"), &n))) printf("[sim] arrows.bin: %s\n", sim_set_arrows(t, n) ? "ok" : "ошибка");
     if (argc > 4 && (t = (char *)slurp(argv[4], &n))) printf("[sim] cams.bin: %s\n", sim_set_cams(t, n) ? "ok" : "ошибка");
     t = (char *)slurp(argv[1], &n);
     if (!t || !sim_load_log(t, n, false)) { fprintf(stderr, "не удалось прочитать лог\n"); return 1; }

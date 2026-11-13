@@ -38,7 +38,7 @@ static const CLSID CLSID_PNG_ENC = { 0x557CF406, 0x1A04, 0x11D3, { 0x9A, 0x73, 0
 
 enum { IDC_OPENF = 100, IDC_OPEND, IDC_PREV, IDC_PLAY, IDC_NEXT, IDC_B10, IDC_F10, IDC_PMAN, IDC_NMAN,
        IDC_SPEED, IDC_MENU, IDC_SHOT, IDC_SOUND, IDC_LIST, IDC_LOG,
-       IDM_CAMS = 200, IDM_EXIT, IDM_ZOOM1, IDM_ZOOM2, IDM_ZOOM3, IDM_ZOOM4, IDM_CLEARLOG, IDM_PLAT_MLB, IDM_PLAT_MQB, IDM_MODE_FULL, IDM_MODE_MIN };
+       IDM_CAMS = 200, IDM_EXIT, IDM_ZOOM1, IDM_ZOOM2, IDM_ZOOM3, IDM_ZOOM4, IDM_CLEARLOG, IDM_PLAT_MLB, IDM_PLAT_MQB, IDM_MODE_FULL, IDM_MODE_MIN, IDM_ARROWS };
 
 #define NBTN 11
 static const struct { int id; const wchar_t *text; int w; } k_btn[NBTN] = {
@@ -288,6 +288,17 @@ static bool load_cams(const wchar_t *path, bool quiet)
     if (!b) { if (!quiet) logf_w(L"[sim] не читается: %ls\n", path); return false; }
     if (!sim_set_cams(b, n)) { if (!quiet) logf_w(L"[sim] cams.bin повреждён или другой версии: %ls\n", path); return false; }
     logf_w(L"[sim] база камер загружена: %ls\n", path);
+    return true;
+}
+
+/* arrows.bin — анимированные стрелки полного режима (tools/gen_arrow_anim.py, arrows/arrows.bin в репозитории).
+   Без файла HUD рисует статичные стрелки, а кнопка «Анимация стрелок» в меню скрыта — как на плате без /arrows.bin. */
+static bool load_arrows(const wchar_t *path, bool quiet)
+{
+    size_t n; void *b = read_file(path, &n);
+    if (!b) { if (!quiet) logf_w(L"[sim] не читается: %ls\n", path); return false; }
+    if (!sim_set_arrows(b, n)) { if (!quiet) logf_w(L"[sim] arrows.bin повреждён или другой версии: %ls\n", path); return false; }
+    logf_w(L"[sim] анимация стрелок загружена: %ls\n", path);
     return true;
 }
 
@@ -635,6 +646,9 @@ static void on_command(int id, int code)
     case IDM_CAMS:  if (pick_file(L"База камер (cams.bin)\0*.bin\0Все файлы\0*.*\0", path) && load_cams(path, false))
                         WritePrivateProfileStringW(L"sim", L"cams", path, g_ini);
                     break;
+    case IDM_ARROWS: if (pick_file(L"Анимированные стрелки (arrows.bin)\0*.bin\0Все файлы\0*.*\0", path) && load_arrows(path, false))
+                        WritePrivateProfileStringW(L"sim", L"arrows", path, g_ini);
+                    break;
     case IDM_CLEARLOG: SetWindowTextW(g_log, L""); s_log_bol = true; break;
     case IDM_EXIT:  DestroyWindow(g_wnd); return;
     case IDM_PLAT_MLB: set_platform(SIM_PLATFORM_MLB_EVO, true); break;
@@ -712,7 +726,8 @@ static LRESULT CALLBACK wnd_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
         wchar_t path[MAX_PATH];
         if (DragQueryFileW((HDROP)wp, 0, path, MAX_PATH)) {
             const wchar_t *bn = base_name(path);
-            if (!lstrcmpiW(bn, L"cams.bin")) { if (load_cams(path, false)) WritePrivateProfileStringW(L"sim", L"cams", path, g_ini); }
+            if (!lstrcmpiW(bn, L"arrows.bin")) { if (load_arrows(path, false)) WritePrivateProfileStringW(L"sim", L"arrows", path, g_ini); }
+            else if (!lstrcmpiW(bn, L"cams.bin")) { if (load_cams(path, false)) WritePrivateProfileStringW(L"sim", L"cams", path, g_ini); }
             else open_path(path, true);
         }
         DragFinish((HDROP)wp);
@@ -764,6 +779,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show)
     AppendMenuW(mf, MF_STRING, IDC_OPEND, L"Открыть папку поездки…");
     AppendMenuW(mf, MF_SEPARATOR, 0, NULL);
     AppendMenuW(mf, MF_STRING, IDM_CAMS, L"Загрузить базу камер (cams.bin)…");
+    AppendMenuW(mf, MF_STRING, IDM_ARROWS, L"Загрузить анимацию стрелок (arrows.bin)…");
     AppendMenuW(mf, MF_SEPARATOR, 0, NULL);
     AppendMenuW(mf, MF_STRING, IDC_SHOT, L"Скриншот (PNG + буфер обмена)\tS");
     AppendMenuW(mf, MF_STRING, IDM_CLEARLOG, L"Очистить журнал");
@@ -814,6 +830,19 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show)
         if (!(p[0] && load_cams(p, true))) {
             swprintf(p, MAX_PATH * 2, L"%ls\\cams.bin", g_exedir);
             if (!load_cams(p, true)) logf_w(L"[sim] cams.bin не найден — камеры не показываются (меню «Файл» → «Загрузить базу камер»)\n");
+        }
+    }
+
+    /* arrows.bin: из hud_sim.ini, иначе рядом с программой, иначе arrows\arrows.bin репозитория (hud_sim_win лежит в tools\) */
+    {
+        wchar_t p[MAX_PATH * 2];
+        GetPrivateProfileStringW(L"sim", L"arrows", L"", p, MAX_PATH, g_ini);
+        if (!(p[0] && load_arrows(p, true))) {
+            swprintf(p, MAX_PATH * 2, L"%ls\\arrows.bin", g_exedir);
+            if (!load_arrows(p, true)) {
+                swprintf(p, MAX_PATH * 2, L"%ls\\..\\..\\arrows\\arrows.bin", g_exedir);
+                if (!load_arrows(p, true)) logf_w(L"[sim] arrows.bin не найден — стрелки статичные, кнопки «Анимация стрелок» в меню нет (меню «Файл» → «Загрузить анимацию стрелок»)\n");
+            }
         }
     }
 

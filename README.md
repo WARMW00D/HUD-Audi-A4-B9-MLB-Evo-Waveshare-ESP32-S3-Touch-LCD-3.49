@@ -699,7 +699,7 @@ A Windows program that shows the 640×172 HUD screen on the PC and plays recorde
 It draws with the **same code as the firmware** (`hud_mockup.c`, `can_decode.c` for MLB-Evo and MQB, `psd_speedlimit.c`, `cam_alert.c`,
 `hud_settings.cpp`, fonts and images are taken from `waveshare_hud_mockup/` unchanged) built together with LVGL 8.4, so a change to the screen or the
 decoder can be checked on a real drive without flashing the board. Features: opening a log or a trip folder, play / pause / rewind, jumps to the
-next manoeuvre, speeds ×0.25…×32, the settings menu of the HUD with the mouse as the touch screen, `cams.bin` loading, platform switch (MLB-Evo / MQB),
+next manoeuvre, speeds ×0.25…×32, the settings menu of the HUD with the mouse as the touch screen, `cams.bin` and animated-arrows (`arrows.bin`, picked up from `arrows/` automatically) loading, platform switch (MLB-Evo / MQB),
 **full / minimalist mode** (the "Mode" menu or the `D` key), screenshots, the firmware log window. No exe is stored in the repository: build it with
 `tools/hud_sim_win/build_win.bat` (needs git and [zig](https://ziglang.org/download/) or MinGW-w64 in `PATH`; LVGL is downloaded on the first run).
 Details, controls and differences from the board are in [tools/hud_sim_win/README.md](tools/hud_sim_win/README.md).
