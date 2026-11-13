@@ -1,0 +1,8 @@
+# то, что появляется при работе и сборке симулятора
+hud_sim.ini
+fw_path.txt
+shots/
+lvgl/
+build/
+hud_shot
+hud_sim.exe

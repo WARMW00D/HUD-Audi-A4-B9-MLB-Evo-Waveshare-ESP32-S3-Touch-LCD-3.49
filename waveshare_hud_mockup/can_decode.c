@@ -31,8 +31,6 @@
 #define TO_LIM     1000
 #define TO_AWV     600
 #define TO_DIM     3000
-#define TO_ACCEL   500
-#define TO_SPDACC  600
 #define TO_BRAKE   500
 #define TO_FUEL    3000
 #define TO_CLOCK   5000
@@ -42,9 +40,9 @@
 #define TO_GPS     1500    /* NavPos_01 / NavData_01: 5 Гц */
 #define TO_WHEEL   3000    /* BCM1_04: раз в 1 с в покое, 50-60 мс при вращении */   /* BAP_BC: 0x18 раз в ~4 с при изменении, остальное — heartbeat ~25 с */
 
-enum { S_SPEED, S_ACC, S_GEAR, S_BLINK, S_SIGN, S_MAN, S_MDIST, S_DEST, S_TTE, S_LKA, S_DOORS, S_HOOD, S_GNUM, S_JAM, S_LIM, S_AWV, S_DIM, S_ACCEL, S_SPDACC, S_BRAKE, S_FUEL, S_CLOCK, S_BC, S_BCFUEL, S_RLS, S_WHEEL, S_SWA, S_GPS, S_HDG, S_COUNT };
+enum { S_SPEED, S_ACC, S_GEAR, S_BLINK, S_SIGN, S_MAN, S_MDIST, S_DEST, S_TTE, S_LKA, S_DOORS, S_HOOD, S_GNUM, S_JAM, S_LIM, S_AWV, S_DIM, S_BRAKE, S_FUEL, S_CLOCK, S_BC, S_BCFUEL, S_RLS, S_WHEEL, S_SWA, S_GPS, S_HDG, S_COUNT };
 static const uint32_t s_timeout[S_COUNT] = {
-    TO_SPEED, TO_ACC, TO_GEAR, TO_BLINK, TO_SIGN, TO_NAV, TO_NAV, TO_NAV, TO_NAV, TO_LKA, TO_DOORS, TO_HOOD, TO_GNUM, TO_JAM, TO_LIM, TO_AWV, TO_DIM, TO_ACCEL, TO_SPDACC, TO_BRAKE, TO_FUEL, TO_CLOCK, TO_BC, TO_BC, TO_RLS, TO_WHEEL, TO_SWA, TO_GPS, TO_GPS
+    TO_SPEED, TO_ACC, TO_GEAR, TO_BLINK, TO_SIGN, TO_NAV, TO_NAV, TO_NAV, TO_NAV, TO_LKA, TO_DOORS, TO_HOOD, TO_GNUM, TO_JAM, TO_LIM, TO_AWV, TO_DIM, TO_BRAKE, TO_FUEL, TO_CLOCK, TO_BC, TO_BC, TO_RLS, TO_WHEEL, TO_SWA, TO_GPS, TO_GPS
 };
 
 static HudData      s_data;
@@ -158,39 +156,6 @@ static void decode_zv02(const uint8_t *d)
 static void decode_bcm01(const uint8_t *d)
 {
     s_data.doors = (s_data.doors & ~DOOR_HOOD) | (sig(d, 31, 1) ? DOOR_HOOD : 0);  /* BCM1_MH_Schalter */
-}
-
-/* ---------- ускорение по скорости (Kombi_01.KBI_angez_Geschw, 0.32 км/ч) ----------
-   Запасной источник ускорения, если ESP_02 на I-CAN нет. Наклон прямой по
-   методу наименьших квадратов через точки скорости за последние ~1.2 с:
-   ступеньки 0.32 км/ч усредняются, а не дают скачков, как разность двух точек. */
-#define SPD_HIST 16
-static uint32_t s_spd_t[SPD_HIST];
-static uint16_t s_spd_v[SPD_HIST];        /* км/ч x100 */
-static uint8_t  s_spd_n, s_spd_i;
-
-static void spd_accel_update(uint16_t v_x100)
-{
-    uint32_t t = hud_now_ms();
-    s_spd_t[s_spd_i] = t; s_spd_v[s_spd_i] = v_x100;
-    s_spd_i = (s_spd_i + 1) % SPD_HIST;
-    if (s_spd_n < SPD_HIST) s_spd_n++;
-
-    /* МНК по точкам не старше 1.2 с */
-    float sx = 0, sy = 0, sxx = 0, sxy = 0; int n = 0;
-    for (int k = 0; k < s_spd_n; k++) {
-        uint32_t age = t - s_spd_t[k];
-        if (age > 1200) continue;
-        float x = -(float)age / 1000.0f;                  /* с, 0 — сейчас */
-        float y = s_spd_v[k] / 100.0f / 3.6f;             /* м/с */
-        sx += x; sy += y; sxx += x * x; sxy += x * y; n++;
-    }
-    if (n < 6) return;
-    float den = n * sxx - sx * sx;
-    if (den < 1e-6f) return;
-    float a = (n * sxy - sx * sy) / den;                  /* м/с² */
-    s_data.accel_spd_x100 = (int16_t)(a * 100.0f);
-    touch(S_SPDACC);
 }
 
 /* ---------- мгновенный расход по счётчику топлива Motor_04.MO_KVS ----------
@@ -506,9 +471,9 @@ void hud_data_fake_doors(uint8_t mask)
 
 /* ---------- диагностика: счётчики кадров по ID ---------- */
 #if HUD_PLATFORM == HUD_PLATFORM_MQB
-static const uint16_t s_dbg_ids[] = { 0x30B, 0x2A7, 0x30C, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x5F0, 0x5A0, 0x30F, 0x101, 0x6B2, 0x462, 0x463, 0x464 };
+static const uint16_t s_dbg_ids[] = { 0x30B, 0x2A7, 0x30C, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x5F0, 0x5A0, 0x30F, 0x6B2, 0x462, 0x463, 0x464 };
 #else
-static const uint16_t s_dbg_ids[] = { 0x30B, 0x2A6, 0x2A8, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x2A9, 0x5F0, 0x5A0, 0x64F, 0x30F, 0x101, 0x6B2, 0x462, 0x463, 0x464 };
+static const uint16_t s_dbg_ids[] = { 0x30B, 0x2A6, 0x2A8, 0x31E, 0x394, 0x366, 0x181, 0x397, 0x583, 0x65A, 0x2A9, 0x5F0, 0x5A0, 0x64F, 0x30F, 0x6B2, 0x462, 0x463, 0x464 };
 #endif
 #define DBG_N (sizeof(s_dbg_ids) / sizeof(s_dbg_ids[0]))
 static uint32_t s_dbg_cnt[DBG_N];
@@ -579,11 +544,6 @@ void can_decode_frame(uint32_t id, bool ext, const uint8_t *data, uint8_t dlc)
     case 0x30B: /* Kombi_01 */
         s_data.speed_kmh = sig(d, 24, 9);
         touch(S_SPEED);
-        spd_accel_update((uint16_t)(sig(d, 48, 10) * 32));     /* KBI_angez_Geschw x0.32 -> км/ч x100 */
-        break;
-    case 0x101: /* ESP_02 — ⚠️ из opendbc MLB, на I-CAN не проверено */
-        s_data.accel_esp_x100 = (int16_t)(((int)sig(d, 24, 10) * 3125 - 1600000) / 1000);   /* x0.03125 - 16 */
-        if (!sig(d, 13, 1)) touch(S_ACCEL);                       /* ESP_QBit_Laengsbeschl = 0 — значение годно */
         break;
     case 0x106: /* ESP_05 — ⚠️ из opendbc MLB, на I-CAN не проверено */
         s_data.brake_bar   = (int16_t)(((int)sig(d, 16, 10) * 3 - 300) / 10);   /* x0.3 - 30 */

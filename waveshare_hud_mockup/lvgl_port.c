@@ -380,7 +380,7 @@ void lvgl_port_init(void)
 
   lvgl_mux = xSemaphoreCreateMutex();
   assert(lvgl_mux);
-  xTaskCreatePinnedToCore(example_lvgl_port_task, "LVGL", 4000, NULL, 4, NULL,0); //运行于内核_0
+  xTaskCreatePinnedToCore(example_lvgl_port_task, "LVGL", 8192, NULL, 4, NULL,0); //运行于内核_0
   if (example_lvgl_lock(-1))
   {
     build_hud_mockup();

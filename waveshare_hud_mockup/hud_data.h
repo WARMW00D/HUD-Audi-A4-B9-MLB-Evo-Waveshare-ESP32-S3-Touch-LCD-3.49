@@ -32,18 +32,16 @@ extern "C" {
 #define V_LIM    (1u << 14)  /* limiter_raw                       */
 #define V_AWV    (1u << 15)  /* awv_warn (pre sense)              */
 #define V_DIM    (1u << 16)  /* dim_*  (Dimmung_01)               */
-#define V_ACCEL  (1u << 17)  /* accel_esp_x100 (ESP_02)           */
-#define V_SPDACC (1u << 18)  /* accel_spd_x100 (по скорости)      */
-#define V_BRAKE  (1u << 19)  /* brake_bar, brake_pedal (ESP_05)   */
-#define V_FUEL   (1u << 20)  /* fuel_l100_x10 (Motor_04)          */
-#define V_CLOCK  (1u << 21)  /* часы машины свежие (Diagnose_01)  */
-#define V_BC     (1u << 22)  /* бортовой компьютер (BAP_BC 0x0F)  */
-#define V_BCFUEL (1u << 23)  /* bc_fuel_pct (BAP_BC fct 0x1C)     */
-#define V_RLS    (1u << 24)  /* rls_* (RLS_01 0x5A0)              */
-#define V_WHEEL  (1u << 25)  /* wheel_pct (BCM1_04 0x64F)         */
-#define V_SWA    (1u << 26)  /* swa_* (SWA_01 0x30F)              */
-#define V_GPS    (1u << 27)  /* gps_lat/lon/fix/sat (NavPos_01 0x486, 5 Гц)   */
-#define V_HDG    (1u << 28)  /* gps_hdg_x10, gps_hdop_x10 (NavData_01 0x484, 5 Гц) */
+#define V_BRAKE  (1u << 17)  /* brake_bar, brake_pedal (ESP_05)   */
+#define V_FUEL   (1u << 18)  /* fuel_l100_x10 (Motor_04)          */
+#define V_CLOCK  (1u << 19)  /* часы машины свежие (Diagnose_01)  */
+#define V_BC     (1u << 20)  /* бортовой компьютер (BAP_BC 0x0F)  */
+#define V_BCFUEL (1u << 21)  /* bc_fuel_pct (BAP_BC fct 0x1C)     */
+#define V_RLS    (1u << 22)  /* rls_* (RLS_01 0x5A0)              */
+#define V_WHEEL  (1u << 23)  /* wheel_pct (BCM1_04 0x64F)         */
+#define V_SWA    (1u << 24)  /* swa_* (SWA_01 0x30F)              */
+#define V_GPS    (1u << 25)  /* gps_lat/lon/fix/sat (NavPos_01 0x486, 5 Гц)   */
+#define V_HDG    (1u << 26)  /* gps_hdg_x10, gps_hdop_x10 (NavData_01 0x484, 5 Гц) */
 
 #define BLINK_L_TAKT  0x01
 #define BLINK_R_TAKT  0x02
@@ -104,8 +102,6 @@ typedef struct {
     uint8_t  gps_hdop_x10;   /* ND_HDOP x10 (0.025 шаг -> округлено)     */
     uint8_t  swa_warn;       /* SWA_01: Warnung — попытка перестроения при машине сбоку: бит0/бит1 */
     uint8_t  wheel_pct;      /* BCM1_04.BCM1_Stellgroesse_Kl_58s — колёсико подсветки 1..100 */
-    int16_t  accel_esp_x100; /* ESP_02.ESP_Laengsbeschl, м/с² x100 (+ разгон) */
-    int16_t  accel_spd_x100; /* производная скорости Kombi_01, м/с² x100, сглаженная */
     int16_t  brake_bar;      /* ESP_05.ESP_Bremsdruck, бар              */
     uint8_t  brake_pedal;    /* ESP_05.ESP_Fahrer_bremst               */
     uint16_t fuel_l100_x10;  /* мгновенный расход, л/100 км x10 (Motor_04.MO_KVS) */

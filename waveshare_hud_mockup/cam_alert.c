@@ -14,6 +14,9 @@
 #ifndef CAM_REAR_AHEAD_S
 #define CAM_REAR_AHEAD_S 6.0f       /* камера «в спину» (признак 1): окно, секунд хода (в лицо — ahead_s) */
 #endif
+#ifndef CAM_REAR_PAST_M
+#define CAM_REAR_PAST_M  40.0f      /* камера «в спину» снимает уже после проезда: держим её (расстояние 0) ещё столько метров после расчётной точки */
+#endif
 #ifndef CAM_REAR_MIN_M
 #define CAM_REAR_MIN_M   100.0f
 #endif
@@ -28,6 +31,7 @@ typedef struct __attribute__((packed)) {
 static const rec_t *s_rec;
 static uint32_t     s_n, s_date;
 static cam_cfg_t    s_cfg = { 12.0f, 200.0f, 600.0f, 35.0f, 50.0f, 0x001 };
+static bool         s_last_rear;                     /* удерживаемая камера снимает в спину */
 static uint32_t     s_active = 0xFFFFFFFFu;          /* камера, за которой уже следим (гистерезис) */
 
 /* Защита от ложных оповещений и поправка на задержку позиции */
@@ -132,7 +136,7 @@ bool cam_query(uint32_t now_ms, double lat, double lon, float hdg_deg, float spe
     double kx = M_PER_DEG * cos(lat * (M_PI / 180.0));      /* м на градус долготы */
 
     int cy = (int)(lat * CELL), cx = (int)(lon * CELL);
-    float best = 1e9f; cam_hit_t b; bool found = false;
+    float best = 1e9f; cam_hit_t b; bool found = false, b_rear = false;
 
     for (int dy = -1; dy <= 1; dy++) {
         for (int dx = -1; dx <= 1; dx++) {
@@ -145,8 +149,10 @@ bool cam_query(uint32_t now_ms, double lat, double lon, float hdg_deg, float spe
                 double along = ex * sh + ey * ch;
                 double cross = ex * ch - ey * sh;
                 if (cross < 0) cross = -cross;
-                if (along <= 0 || along > R) continue;
-                if ((r->tf >> 4) == 1) {            /* снимает в спину: оповещаем позже */
+                bool rear = (r->tf >> 4) == 1;
+                if (rear ? (along < -CAM_REAR_PAST_M) : (along <= 0)) continue;
+                if (along > R) continue;
+                if (rear) {            /* снимает в спину: оповещаем позже */
                     float Rr = speed_kmh / 3.6f * CAM_REAR_AHEAD_S;
                     if (Rr < CAM_REAR_MIN_M) Rr = CAM_REAR_MIN_M;
                     if (Rr > R) Rr = R;
@@ -157,9 +163,10 @@ bool cam_query(uint32_t now_ms, double lat, double lon, float hdg_deg, float spe
                     float d = fabsf(fmodf((float)r->dir - hdg_deg + 540.0f, 360.0f) - 180.0f);
                     if (d > s_cfg.dir_deg) continue;
                 }
-                if (along < best) {
-                    best = (float)along;
-                    b.dist_m = (float)along; b.cross_m = (float)cross; b.idx = i;
+                float key = along >= 0 ? (float)along : 1e5f - (float)along;   /* уже проеханная «спинная» — после всех, что впереди */
+                if (key < best) {
+                    best = key; b_rear = rear;
+                    b.dist_m = along > 0 ? (float)along : 0.0f; b.cross_m = (float)cross; b.idx = i;
                     b.dir_deg = r->dir; b.limit = r->lim; b.type = r->tf & 15;
                     found = true;
                 }
@@ -174,14 +181,14 @@ bool cam_query(uint32_t now_ms, double lat, double lon, float hdg_deg, float spe
         } else if (dev > CAM_TURN_DROP_DEG) {                /* поворот — камера уже не по пути */
             s_active = 0xFFFFFFFFu; s_pend = 0xFFFFFFFFu; return false;
         }
-        s_active = b.idx; s_last = b; s_last_t = now_ms; if (out) *out = b;
+        s_active = b.idx; s_last = b; s_last_rear = b_rear; s_last_t = now_ms; if (out) *out = b;
         return true;
     }
     s_pend = 0xFFFFFFFFu;
     if (s_active != 0xFFFFFFFFu && now_ms - s_last_t <= CAM_HOLD_MS) {
         float dt = (now_ms - s_last_t) / 1000.0f, left = s_last.dist_m - speed_kmh / 3.6f * dt;
-        if (left > 15.0f) {                                  /* камера ещё впереди — держим, расстояние уменьшаем */
-            if (out) { *out = s_last; out->dist_m = left; }
+        if (left > (s_last_rear ? -CAM_REAR_PAST_M : 15.0f)) {   /* камера ещё впереди (спинная — ещё и чуть после) — держим, расстояние уменьшаем */
+            if (out) { *out = s_last; out->dist_m = left > 0 ? left : 0.0f; }
             return true;
         }
     }
