@@ -11,6 +11,11 @@ without a single edit and built together with LVGL 8.4. Changed something in the
 ![HUD Sim window: the HUD screen, timeline, trip logs and the firmware log](../../docs/screens/hud_sim_window.png)
 *The simulator window: the HUD screen (full mode with an animated arrow), the timeline with manoeuvre marks, the list of trip logs and the firmware log*
 
+> **Logs have to be recorded beforehand.** The simulator captures nothing from the car, it only plays back `can_log_NNNN.txt` files.
+> They are written by the ESP32 CAN logger: [esp32-CAN-sniffer-logger-screener](https://github.com/WARMW00D/esp32-CAN-sniffer-logger-screener).
+> Drive the route you need with it (for the map and navigation, with route guidance switched on), then open the file or folder
+> with the recording in the simulator.
+
 ## Running
 
 `hud_sim.exe` is built with `build_win.bat` (see "Building"); there is no ready exe in the repository, and nothing has to be
