@@ -66,7 +66,7 @@ Any field without fresh data is **hidden** instead of showing a stale value
 
 ### Version
 
-Firmware **4.0.0** (`HUD_FW_VERSION` in `hud_config.h`): shown on the update page, in the start-up log and in the title of the simulator window.
+Firmware **4.0.1** (`HUD_FW_VERSION` in `hud_config.h`): shown on the update page, in the start-up log and in the title of the simulator window.
 
 
 > **Which platform is built by default?** **MLB-Evo (Audi A4 B9)**. This is the car the project was developed on, so the default map is the A4 one. If your car is **MQB** (checked on a Skoda Octavia A7), set `#define HUD_PLATFORM HUD_PLATFORM_MQB` in `hud_config.h` — see [Platform](#platform-hud_platform). Without it ACC will not show: the MQB car sends different frames.
@@ -825,12 +825,16 @@ The generator scripts in `tools/` write straight into `waveshare_hud_mockup/`.
 | What | MLB-Evo (A4) | MQB (Octavia A7) | Status on MQB |
 |---|---|---|---|
 | ACC active | 0x2A8, 16\|3 | 0x2A7, bit 58 (1 → active, 0 → standby) | ⚠️ from engagement intervals in the logs |
-| ACC set speed | 0x2A6, 12\|10, ×0.32 km/h | 0x30C (ACC_02), 16\|6: 5 × value + 5 km/h, 63 = not set (kept while ACC is inactive) | ✅ |
+| ACC set speed | 0x2A6, 12\|10, ×0.32 km/h | 0x30C (ACC_02), 12\|10, ×0.32 km/h (same format as 0x2A6), 0x3FF = not set (kept while ACC is inactive) | ✅ |
 | Lead vehicle | 0x2A6, 45\|2 | 0x30C, 45\|2 | ⚠️ same layout as the A4, not verified on a real series |
 | ACC time gap | 0x2A6, 37\|3 | 0x30C, 37\|3 | ⚠️ constantly 1 in the logs |
 | Pre sense (ACC_15) | 0x2A9 | not on the bus | disabled |
 | Lighting wheel | 0x64F, 25\|7 | 0x5F0 byte 2 (16\|8), stands at 100 | ⚠️ confirmed as the lighting control by the driver, movement not recorded |
 | Lane keeping inside ACC, traffic jam assist | 0x2A6 | not decoded | ❌ |
+
+In firmware 4.0.1 the MQB set speed changed from the old 6-bit field `16|6` (5 km/h step) to the full 10-bit `12|10` (0.32 km/h step); the old field is its upper 6 bits, the "not set" marker is the same, so on the logs the result is unchanged (30 / 40 / 60 km/h), but the step is finer. The drawing code is common with the A4.
+
+On MQB the state `0x397` left = right = 3 can last up to ~2 minutes without warning bits in the Octavia logs, so it most likely means "assist on, but not steering" and not "leaving the lane"; the current drawing blinks orange on 3. Not confirmed: a log with a real lane departure is needed. The ACC status bit (0x2A7, bit 58) and EPS HCA status (0x09F) are still hypotheses and are not used.
 
 On MQB the Lane Assist rule (0x397) is used without an interval in the BLE ACL: the green flag can last as little as 0.1 s.
 
