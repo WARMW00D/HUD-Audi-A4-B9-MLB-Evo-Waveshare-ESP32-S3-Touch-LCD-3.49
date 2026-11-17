@@ -53,6 +53,8 @@
 #include "hud_cams.h"
 #include "hud_min_images.h"
 #include "src/lcd_bl_bsp/lcd_bl_pwm_bsp.h"
+LV_FONT_DECLARE(hud_font_splash);      /* заставка «HUD VAG» (Inter Display Medium 72 px, только нужные буквы) */
+LV_FONT_DECLARE(hud_font_splash_sub);  /* подпись платформы под ней (22 px) */
 
 /* Шрифты: Montserrat Bold (SIL OFL 1.1) с табличными цифрами — см. tools/fonts/ */
 LV_FONT_DECLARE(hud_font_speed);  /* скорость, цифры ~84 px                          */
@@ -1094,7 +1096,7 @@ static void mn_update(const HudData *d, uint32_t now, const MinCtx *c)
             ? "Pairing rejected. Check the passkey or reset pairings on the device: hold BOOT for 5 s."
             : "Сопряжение не принято. Проверьте код доступа или сбросьте сопряжения на устройстве: удерживайте BOOT 5 с.");
         vis(mn_pair, pf);
-        bool ls = !d->link_up && !pf;
+        bool ls = false;   /* без связи — заставка */
         if (ls) {
             set_text(mn_link, LV_SYMBOL_BLUETOOTH " ...");
             lv_obj_set_pos(mn_link, MN_CZ_CX - mn_text_w(LV_FONT_DEFAULT, LV_SYMBOL_BLUETOOTH " ...") / 2, 4);
@@ -1158,6 +1160,116 @@ static void mem_timer_cb(lv_timer_t *t)
 }
 #endif
 
+/* ---------- заставка, пока нет связи ---------- */
+/* Весь экран: «HUD VAG» крупно, тонкая линия с градиентом, подпись платформы (MLB EVO / MQB — по HUD_PLATFORM), внизу мелкий
+   серый значок Bluetooth. Появляется, только если связи (BLE / свой CAN) нет дольше SPLASH_DELAY_MS — короткие пропадания
+   не мигают, плавно (0,7 с); как только связь есть (link_up) — пропадает сразу. Если сопряжение отклонено — вместо подписи
+   и значка показывается подсказка про код доступа. Меню настроек и экран обновления лежат поверх заставки. */
+#if HUD_PLATFORM == HUD_PLATFORM_MQB
+#define SPLASH_PLAT_DEFAULT "MQB"
+#else
+#define SPLASH_PLAT_DEFAULT "MLB EVO"
+#endif
+#define SPLASH_W          640
+#define SPLASH_H          172
+#define SPLASH_DELAY_MS   1500    /* столько связи не должно быть, чтобы заставка появилась */
+#define SPLASH_TITLE_CY   58      /* центр заглавных «HUD VAG» по вертикали */
+#define SPLASH_LINE_Y     100
+#define SPLASH_SUB_CY     122
+#define SPLASH_BT_Y       148
+#define SPLASH_TITLE_LS   9       /* разрядка, px */
+#define SPLASH_SUB_LS     8
+#define C_SPLASH_TITLE    0xf2f5f8
+#define C_SPLASH_SUB      0x9db0c4
+static char      g_splash_plat[24] = SPLASH_PLAT_DEFAULT;
+static lv_obj_t *splash, *splash_in, *splash_sub, *splash_bt, *splash_msg;
+
+void hud_set_splash_plat(const char *s)
+{
+    if (s && *s) { strncpy(g_splash_plat, s, sizeof g_splash_plat - 1); g_splash_plat[sizeof g_splash_plat - 1] = 0; }
+}
+
+static lv_obj_t *splash_label(lv_obj_t *par, const lv_font_t *f, const char *s, int ls, uint32_t col, int cap_cy)
+{
+    lv_obj_t *l = lv_label_create(par);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_style_text_color(l, lv_color_hex(col), 0);
+    lv_obj_set_style_text_letter_space(l, ls, 0);
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(l, SPLASH_W);
+    lv_label_set_text(l, s);
+    lv_font_glyph_dsc_t g; int top = 0, h = 0;
+    if (lv_font_get_glyph_dsc(f, &g, 'H', 0)) { h = g.box_h; top = (f->line_height - f->base_line) - g.ofs_y - g.box_h; }
+    lv_obj_set_pos(l, 0, cap_cy - (top + h / 2));
+    return l;
+}
+
+static void splash_rule(lv_obj_t *par, int x, int w, bool rise)
+{
+    lv_obj_t *o = lv_obj_create(par);
+    lv_obj_remove_style_all(o);
+    lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_size(o, w, 2);
+    lv_obj_set_pos(o, x, SPLASH_LINE_Y);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(o, lv_color_hex(rise ? 0x000000 : C_NAV_ARROW), 0);
+    lv_obj_set_style_bg_grad_color(o, lv_color_hex(rise ? C_NAV_ARROW : 0x000000), 0);
+    lv_obj_set_style_bg_grad_dir(o, LV_GRAD_DIR_HOR, 0);
+}
+
+static void splash_build(lv_obj_t *scr)
+{
+    splash = lv_obj_create(scr);
+    lv_obj_remove_style_all(splash);
+    lv_obj_set_size(splash, SPLASH_W, SPLASH_H);
+    lv_obj_set_pos(splash, 0, 0);
+    lv_obj_set_style_bg_color(splash, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(splash, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(splash, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    splash_in = lv_obj_create(splash);              /* содержимое — отдельным слоем, чтобы плавно проявлять его на чёрном */
+    lv_obj_remove_style_all(splash_in);
+    lv_obj_set_size(splash_in, SPLASH_W, SPLASH_H);
+    lv_obj_clear_flag(splash_in, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    splash_label(splash_in, &hud_font_splash, "HUD VAG", SPLASH_TITLE_LS, C_SPLASH_TITLE, SPLASH_TITLE_CY);
+    splash_rule(splash_in, SPLASH_W / 2 - 180, 180, true);
+    splash_rule(splash_in, SPLASH_W / 2, 180, false);
+    splash_sub = splash_label(splash_in, &hud_font_splash_sub, g_splash_plat, SPLASH_SUB_LS, C_SPLASH_SUB, SPLASH_SUB_CY);
+    splash_bt = lv_label_create(splash_in);          /* мелкий значок связи внизу */
+    lv_obj_set_style_text_font(splash_bt, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_text_color(splash_bt, lv_color_hex(0x666666), 0);
+    lv_obj_set_style_text_align(splash_bt, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(splash_bt, SPLASH_W);
+    lv_label_set_text(splash_bt, LV_SYMBOL_BLUETOOTH " ...");
+    lv_obj_set_pos(splash_bt, 0, SPLASH_BT_Y);
+    splash_msg = lv_label_create(splash_in);         /* сопряжение отклонено — подсказка вместо подписи */
+    lv_label_set_long_mode(splash_msg, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_font(splash_msg, &hud_font_menu, 0);
+    lv_obj_set_style_text_color(splash_msg, lv_color_hex(C_ORANGE), 0);
+    lv_obj_set_style_text_align(splash_msg, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(splash_msg, 580);
+    lv_obj_set_pos(splash_msg, (SPLASH_W - 580) / 2, SPLASH_LINE_Y + 12);
+    lv_obj_add_flag(splash_msg, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(splash, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void splash_fade_cb(void *o, int32_t v) { lv_obj_set_style_opa((lv_obj_t *)o, (lv_opa_t)v, 0); }
+
+static void splash_show(bool on)
+{
+    bool was = !lv_obj_has_flag(splash, LV_OBJ_FLAG_HIDDEN);
+    if (on && !was) {
+        lv_obj_clear_flag(splash, LV_OBJ_FLAG_HIDDEN);
+        lv_anim_t a; lv_anim_init(&a);
+        lv_anim_set_var(&a, splash_in); lv_anim_set_exec_cb(&a, splash_fade_cb);
+        lv_anim_set_values(&a, 0, 255); lv_anim_set_time(&a, 700);
+        lv_anim_start(&a);
+    } else if (!on && was) {
+        lv_anim_del(splash_in, splash_fade_cb);
+        lv_obj_add_flag(splash, LV_OBJ_FLAG_HIDDEN);   /* связь есть — убираем сразу */
+    }
+}
+
 static void hud_update_cb(lv_timer_t *t)
 {
     (void)t;
@@ -1170,6 +1282,26 @@ static void hud_update_cb(lv_timer_t *t)
     int ov_opa = 0;                    /* превышение 0..255 — для минималистичного режима */
     static uint8_t mode_shown = 0xFF;
     if (g_mode != mode_shown) { mode_shown = g_mode; mode_apply(); }
+
+    {   /* заставка: связи нет дольше SPLASH_DELAY_MS (в режиме обновления её нет — там свой экран) */
+        static bool nl_run; static uint32_t nl_since;
+        bool nl = !d.link_up && !hud_ota_mode();
+        if (!nl) nl_run = false; else if (!nl_run) { nl_run = true; nl_since = now; }
+        bool sp = nl && (uint32_t)(now - nl_since) >= SPLASH_DELAY_MS;
+        splash_show(sp);
+        if (sp) {
+            bool spf = hud_src_pair_failed();
+            if (spf) set_text(splash_msg, g_lang == HUD_LANG_EN
+                ? "Pairing rejected. Check the passkey or reset pairings on the device: hold BOOT for 5 s."
+                : "Сопряжение не принято. Проверьте код доступа или сбросьте сопряжения на устройстве: удерживайте BOOT 5 с.");
+            vis(splash_msg, spf);
+            vis(splash_sub, !spf);
+            vis(splash_bt, !spf);
+            set_text(splash_sub, g_splash_plat);
+            update_brightness(&d, now);
+            return;
+        }
+    }
 
     /* --- подпись единиц скорости (язык / единицы могут смениться на ходу) --- */
     set_text(kmh_lbl, g_units == HUD_UNITS_MI ? "mph" : txt()->kmh);
@@ -1458,7 +1590,7 @@ static void hud_update_cb(lv_timer_t *t)
         if (src == 1)      { set_text(link_lbl, "CAN");               set_text_color(link_lbl, C_LINK_CAN); }
         else if (src == 0) { set_text(link_lbl, LV_SYMBOL_BLUETOOTH); set_text_color(link_lbl, C_LINK_BLE); }
         else               { set_text(link_lbl, LV_SYMBOL_BLUETOOTH " ..."); set_text_color(link_lbl, 0x666666); }
-        bool lshow = !link_pf && !tsr_shown;
+        bool lshow = src >= 0 && !link_pf && !tsr_shown;   /* без связи — заставка */
         if (lshow) {
             lv_obj_update_layout(link_lbl);
             int x = top_gap_cx() - lv_obj_get_width(link_lbl) / 2;
@@ -2629,6 +2761,7 @@ void build_hud_mockup(void)
     turn_right_container = make_blinker(scr0, BLINK_R_X, BLINK_Y,
                                         &img_blink_r_outline, &img_blink_r_fill, &turn_right_sym);
 
+    splash_build(scr0);                    /* заставка без связи: поверх экрана, под меню и экраном обновления */
 #if HUD_TOUCH_ENABLE
     build_menu(scr0);                      /* ловушка касаний и меню поверх всего */
 #endif

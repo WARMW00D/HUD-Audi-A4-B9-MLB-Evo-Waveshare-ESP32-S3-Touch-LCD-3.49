@@ -36,6 +36,7 @@ void    hud_set_anim(bool on);         /* анимированные стрел�
 bool    hud_get_anim(void);
 void    hud_set_mode(uint8_t mode);    /* режим отображения: HUD_MODE_FULL / HUD_MODE_MIN (hud_config.h) */
 uint8_t hud_get_mode(void);
+void    hud_set_splash_plat(const char *s);   /* подпись платформы на заставке без связи ("MLB EVO" / "MQB") */
 
 void    hud_set_overspeed_tol(uint8_t kmh);   /* допуск превышения, км/ч, 0..20 */
 uint8_t hud_get_overspeed_tol(void);

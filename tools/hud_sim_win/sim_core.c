@@ -425,6 +425,7 @@ void sim_seek_ms(uint32_t pos_ms)
 void sim_set_platform(int p)
 {
     p = p == SIM_PLATFORM_MQB ? SIM_PLATFORM_MQB : SIM_PLATFORM_MLB_EVO;
+    hud_set_splash_plat(p == SIM_PLATFORM_MQB ? "MQB" : "MLB EVO");
     if (p == s_plat) return;
     s_plat = p;
     /* у нового декодера состояние пустое или старое: та же точка лога с «разгоном» — уже через него */
