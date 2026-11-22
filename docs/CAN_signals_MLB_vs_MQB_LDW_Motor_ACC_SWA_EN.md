@@ -471,3 +471,56 @@ Notes:
 3. Invalid-value markers: oil temp `194`, intake temp `142.5`,
    oil pressure `248/254`, `SCR_Reichweite` `32767`, KVS `32767` (overflow,
    there is a `MO_KVS_Ueberlauf` flag).
+
+---
+
+## 6. TSR: signs other than speed limits seen in the logs
+
+Scanned all sign slots: `VZE_01` (0x181): sign1 `11|8`, sign2 `19|8`, sign3 `27|8`,
+supplementary panels `38|4/42|4/46|4`, sources `54|1` camera / `55|1` map, warn `35|1`;
+`VZE_02` (0x29C): sign4 `11|8`, sign5 `19|8`, `VZE_Baustelle` `46|2`.
+
+### Observed codes
+
+| Car | Sign 1 (VZE_01) | Sign 2 | Sign 3 | Sign 4/5 (VZE_02) | Other |
+|---|---|---|---|---|---|
+| A4 (MLB-Evo) | 2,4,8,10,12,16,20 (10–100 km/h) | always 0 | **105** (219 frames) | mirrors sign 1 | warn bit: 3026 frames |
+| Octavia (MQB) | 4,6,8,10,12,16,18 (20–90 km/h) | always 0 | **105** (182 frames) | **109** (82), **108** (13) | `VZE_Baustelle=1`: 748 frames |
+| Passat (MQB) | 4,8,10 (20/40/50 km/h) | always 0 | always 0 | mirrors sign 1 | — |
+
+- All codes 1..30 are speed limits via the 5×code formula (verified earlier:
+  8=40, 12=60, 16=80). No no-overtaking signs (or their cancellation) appeared
+  in the logs; supplementary panels are unused — zeros everywhere.
+- **Code 105** (A4 + Octavia, slot 3): appears as an extra sign next to the
+  active limit. On the A4 one case was captured: sign1 = 40 → 105 appears →
+  all signs clear. This matches an end-of-restriction sign (Aufhebungszeichen,
+  "end of speed limit" / "end of all restrictions").
+  ⚠️ Semantics not confirmed: the DBC has no VAL table (only
+  `0 "kein_Verkehrszeichen"`), and codes >30 are undocumented. On the Octavia
+  the limit sometimes remained after 105 disappeared — possibly a different
+  sign was cancelled (overtaking), or the map substituted the limit.
+- **Codes 108/109** (Octavia only, VZE_02 slot 5): brief 1–4 s appearances,
+  always with suppression bit `sup5=1` (sign not shown to the driver / greyed).
+  No correlation with `VZE_Baustelle` (zero time overlap). Candidates are
+  warning signs (dangerous area etc.); semantics unknown.
+- **`VZE_Baustelle=1`** (Octavia, 748 frames): the camera saw road works.
+  Not seen on the A4 or Passat.
+
+### Conclusion for the HUD
+
+Safe to display: speed limits (codes 1..30, 5×code formula) — reliable;
+code 105 as "end of limit" — flagged as "needs a calibration drive with video";
+the Baustelle flag — as a road-works indication (MQB). Codes 108/109 should be
+logged raw for now to calibrate `vze_table.h`.
+
+## 7. Acceleration (longitudinal / lateral)
+
+| Car | Longitudinal accel | Lateral accel | Notes |
+|---|---|---|---|
+| A4 (MLB-Evo) | ❌ `ESP_02` (0x101) absent from the bus | ❌ | Only sensor offsets (`ESP_03`) and brake pressure `ESP_05` (0x106, `16|10` ×0.3−30 bar). Alternatives: Δv from `ESP_21`/`MO_Einheitsgeschwindigkeit`, or `TSK_a_Soll` (0x121) — target acceleration from ACC/TSK |
+| Octavia (MQB) | ✅ `ESP_Laengsbeschl` 0x101 `24|10` ×0.03125−16 m/s², log range −3.88…+3.94 | ✅ `ESP_Querbeschleunigung` `16|8` ×0.01−1.27 g | Live, 100 Hz-capable |
+| Passat (MQB) | ✅ same, range −4.88…+2.12 m/s² | ✅ same | — |
+
+On MQB the HUD can show acceleration (G-meter, eco-driving "tree").
+On the A4 — only a speed derivative (~0.1–0.2 s lag) or brake pressure
+as a braking indicator.
